@@ -195,14 +195,17 @@ if (CALCULATE_BUDGET == T | PLOT_DSC == T) {
 # Comparison maps ---------------------------------------------------------
 
 if (PLOT_COMPARISON_MAPS == T) {
-  map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
+  #collate emep_vars
+  comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
   
-  comp_plots_list = future_map(map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
+  comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
                                                               outer_test_fname = TEST_OUTER_FNAME, outer_ref_fname = REF_OUTER_FNAME,
-                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS)) %>% 
-    map(plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
-    compact() #remove null elements (where var is not in the file) from comp_plots
-  
+                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
+  null_vars_lgl = comp_map_data %>% 
+    map_lgl(is_null)
+  null_vars = comp_map_vars[null_vars_lgl]
+  comp_plots_list = map(comp_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS)
+
   page_titles = format_maps_page_title(outer_test_pth = TEST_OUTER_FNAME,
                                        outer_ref_pth = REF_OUTER_FNAME,
                                        inner_test_pth = TEST_INNER_FNAME,
@@ -395,7 +398,7 @@ if (COMPARE_EMISSIONS == T) {
   ###MassBudgetSummary.txt data
   MBS_list = map2(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), 
                   c(REF_OUTER_FNAME, REF_INNER_FNAME), 
-                  compare_run_emissions, save_file = T)
+                  compare_run_emissions, save_file = T, mbs_table_fname = MBS_TABLE_FNAME)
   
   MBS_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
   MBS_plot_captions = c(str_c('Test: ', str_replace(path_file(TEST_OUTER_FNAME), '_[^_]+$', ''),'\n',

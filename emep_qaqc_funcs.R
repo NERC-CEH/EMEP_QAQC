@@ -147,6 +147,8 @@ compare_file_size = function(test_pth, ref_pth) {
 }
 
 load_emep_data = function(emep_fname, emep_crs, vars = 'all', time_index = NULL) {
+  ###returns a list of stars_proxy objects containg vars
+  ###if vars not in emep data the function returns NULL
   
   ###!!!WIP - time slicing needs finishing!!!
   
