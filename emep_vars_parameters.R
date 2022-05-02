@@ -5,6 +5,7 @@ get_params_list = function() {
   MAP_TEMPLATE_BREAKS = c(0, 0.1,0.2,0.3,0.5,1,2,3,4,5,10,15,20,25,30,40,50,100, 1e6)
   MAP_TEMPLATE_BREAKS_HM = c(0.001,0.01,0.1,0.2,0.3,0.5,1,2,3,4,5,10,15,20,30,40,50,60,70,80,100,200)
   MAP_TEMPLATE_DIFF_BREAKS = seq(-10,10,1)
+  MAP_TEMPLATE_DIFF_BREAKS_HM = seq(-10,10,1)
   
   VAR_PARAMS_LIST = list(Emis_mgm2_nox = list(map_levs = 100 * MAP_TEMPLATE_BREAKS,
                                               map_difflevs = 20 * MAP_TEMPLATE_DIFF_BREAKS,
