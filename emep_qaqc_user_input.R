@@ -39,7 +39,7 @@ BUDGET_MASK_FNAME = '/home/mvi/Analysis/UK_shapefile/EMEP_GRID_01x01DEG_GB.shp'
 
 TEST_OBS_FNAME = TEST_INNER_FNAME 
 
-PALETTE_DIR = '/home/tomlis65/EMEP_QAQC/NCL_colors' #where ncl color palettes are stored
+PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
 
 # projections --------------------------------------------------------------
 ### declare projections - the projection MUST be the same for all EMEP input files
