@@ -11,9 +11,9 @@ library(ggpubr)
 library(gridExtra)
 library(rnaturalearth)
 source('emep_qaqc_user_input.R')
-source('QAQC_R_files/myquicktext.R')
-source('QAQC_R_files/emep_vars_parameters.R')
-source('QAQC_R_files/emep_qaqc_funcs.R')
+source('myquicktext.R')
+source('emep_vars_parameters.R')
+source('emep_qaqc_funcs.R')
 
 VAR_PARAMS_LIST = get_params_list() # list of parameters for each EMEP var 
 OBS_VAR_PARAMS_LIST = get_obs_var_params_list() # list of plotting params for EMEP vars used in obs-mod comparison 
