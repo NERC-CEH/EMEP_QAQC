@@ -10,9 +10,9 @@ library(openair)
 library(ggpubr)
 library(gridExtra)
 library(rnaturalearth)
-source('/home/tomlis65/EMEP_QAQC/QAQC_R_files/myquicktext.R')
-source('/home/tomlis65/EMEP_QAQC/QAQC_R_files/emep_vars_parameters0.R')
-source('/home/tomlis65/EMEP_QAQC/QAQC_R_files/emep_qaqc_funcs1.R')
+source('QAQC_R_files/myquicktext.R')
+source('QAQC_R_files/emep_vars_parameters.R')
+source('QAQC_R_files/emep_qaqc_funcs.R')
 
 VAR_PARAMS_LIST = get_params_list() # list of parameters for each EMEP var 
 OBS_VAR_PARAMS_LIST = get_obs_var_params_list() # list of plotting params for EMEP vars used in obs-mod comparison 
@@ -73,6 +73,7 @@ EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 QAQC_DIR = path_dir(TEST_INNER_FNAME)
 
 qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
+report_pth_out = dir_create(path(qaqc_pth_out, 'Reports'))
 maps_pth_out = dir_create(path(qaqc_pth_out, 'Maps'))
 plots_pth_out = dir_create(path(qaqc_pth_out, 'Plots'))
 tables_pth_out = dir_create(path(qaqc_pth_out, 'Tables'))
