@@ -22,6 +22,50 @@ OBS_VAR_PARAMS_LIST = get_obs_var_params_list() # list of plotting params for EM
 # MAIN --------------------------------------------------------------------
 future::plan(multicore)
 
+# Emissions comparison ---------------------------------------------------------------
+
+if (COMPARE_EMISSIONS == T) {
+  
+  ###MassBudgetSummary.txt data
+  MBS_list = map2(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), 
+                  c(REF_OUTER_FNAME, REF_INNER_FNAME), 
+                  compare_run_emissions, save_file = T, mbs_table_fname = MBS_TABLE_FNAME)
+  
+  MBS_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
+  MBS_plot_captions = c(str_c('Test: ', str_replace(path_file(TEST_OUTER_FNAME), '_[^_]+$', ''),'\n',
+                              'Ref: ', str_replace(path_file(REF_OUTER_FNAME), '_[^_]+$', '')),
+                        str_c('Test: ', str_replace(path_file(TEST_INNER_FNAME), '_[^_]+$', ''),'\n',
+                              'Ref: ', str_replace(path_file(REF_INNER_FNAME), '_[^_]+$', '')))
+  
+  MBS_plots = map(MBS_list, plot_MBS_diff, threshold = EMISS_DIFF_THRESHOLD) %>% 
+    map2(MBS_plot_captions, ~.x + labs(caption = .y) + theme(plot.caption = element_text(size = 6, face = 'italic') ))
+  
+  
+  walk2(MBS_plots, path(plots_pth_out, str_c(MBS_domains, '_', MBS_PLOT_FNAME)),
+        ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
+  
+  ###RunLog.out emissions
+  
+  emiss_list = map(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), compare_inv_mod_emissions, webdabEMEP_pth = WEBDABEMEP_PTH)
+  
+  #determine the number of plots per page so that they fit on A4 paper
+  n_land = map_int(emiss_list, ~n_distinct(.x$Land))
+  ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L, .x >= 11 && .x <= 20 ~ 2L, .x > 20 ~ 1L))
+  
+  emiss_plot_list = map(emiss_list, plot_emiss_diff, threshold = EMISS_DIFF_THRESHOLD)
+  
+  emiss_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
+  page_titles = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), strip_time_res) %>% 
+    str_c('\n\n')
+  
+  emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
+                              marrangeGrob, ncol = 1)
+  out_pths = path(plots_pth_out, str_c(emiss_domains, '_', INV_MOD_EMISS_PLOT_FNAME))
+  
+  walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = 'a4', height = 10, width = 7))
+  
+}
+
 # Budget calculation + deposition and surface conc (DSC) plots -------------
 if (CALCULATE_BUDGET == T | PLOT_DSC == T) {
   emep_budget = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') %>% 
@@ -273,48 +317,4 @@ if (PLOT_MOBS_PDF == T) {
   #plot daily and hourly mobs per site
   future_walk(mobs_list, site_time_series_pdf3, sites_geo, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
               ppp = PPP, run_title_info = run_info)
-}
-
-# Emissions comparison ---------------------------------------------------------------
-
-if (COMPARE_EMISSIONS == T) {
-  
-  ###MassBudgetSummary.txt data
-  MBS_list = map2(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), 
-                  c(REF_OUTER_FNAME, REF_INNER_FNAME), 
-                  compare_run_emissions, save_file = T, mbs_table_fname = MBS_TABLE_FNAME)
-  
-  MBS_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
-  MBS_plot_captions = c(str_c('Test: ', str_replace(path_file(TEST_OUTER_FNAME), '_[^_]+$', ''),'\n',
-                              'Ref: ', str_replace(path_file(REF_OUTER_FNAME), '_[^_]+$', '')),
-                        str_c('Test: ', str_replace(path_file(TEST_INNER_FNAME), '_[^_]+$', ''),'\n',
-                              'Ref: ', str_replace(path_file(REF_INNER_FNAME), '_[^_]+$', '')))
-  
-  MBS_plots = map(MBS_list, plot_MBS_diff, threshold = EMISS_DIFF_THRESHOLD) %>% 
-    map2(MBS_plot_captions, ~.x + labs(caption = .y) + theme(plot.caption = element_text(size = 6, face = 'italic') ))
-  
-  
-  walk2(MBS_plots, path(plots_pth_out, str_c(MBS_domains, '_', MBS_PLOT_FNAME)),
-        ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
-  
-  ###RunLog.out emissions
-  
-  emiss_list = map(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), compare_inv_mod_emissions, webdabEMEP_pth = WEBDABEMEP_PTH)
-  
-  #determine the number of plots per page so that they fit on A4 paper
-  n_land = map_int(emiss_list, ~n_distinct(.x$Land))
-  ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L, .x >= 11 && .x <= 20 ~ 2L, .x > 20 ~ 1L))
-  
-  emiss_plot_list = map(emiss_list, plot_emiss_diff, threshold = EMISS_DIFF_THRESHOLD)
-  
-  emiss_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
-  page_titles = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), strip_time_res) %>% 
-    str_c('\n\n')
-  
-  emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
-                              marrangeGrob, ncol = 1)
-  out_pths = path(plots_pth_out, str_c(emiss_domains, '_', INV_MOD_EMISS_PLOT_FNAME))
-  
-  walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = 'a4', height = 10, width = 7))
-  
 }
