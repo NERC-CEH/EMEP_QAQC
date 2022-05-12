@@ -204,8 +204,6 @@ if(COLLATE_MOBS == T) {
     bind_rows() %>%
     split(.$code)
   
-  write_rds(mobs_list, 'MOBS.rds')
-  
   #output iterations ending in error
   print(iter_df[!is_ok, ])
   
