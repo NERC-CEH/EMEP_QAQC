@@ -35,9 +35,11 @@ REF_OUTER_FNAME = '/home/mvi/EMEP_user_4.36/output/ROWE/BASE/2019/EU/EMEP4UK_eme
 REF_INNER_FNAME = '/home/mvi/EMEP_user_4.36/output/ROWE/BASE/2019/UK_3Km/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_ROWE_BASE_trend2019_emiss2019_UK_3Km_2019_fullrun.nc'
 
 EMEP_BUDGET_FNAME = c(TEST_INNER_FNAME, REF_INNER_FNAME)
-BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
 
-TEST_OBS_FNAME = TEST_INNER_FNAME 
+BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
+WEBDABEMEP_PTH = 'WebdabEMEP_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
+
+TEST_OBS_FNAME = TEST_INNER_FNAME #EMEP file used for comparison with hourly observations
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
 

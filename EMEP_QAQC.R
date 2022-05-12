@@ -301,7 +301,7 @@ if (COMPARE_EMISSIONS == T) {
   
   ###RunLog.out emissions
   
-  emiss_list = map(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), compare_inv_mod_emissions, webdabEMEP_pth = 'QAQC_R_files/webdabEMEPNationalEmissions2000-2019.txt')
+  emiss_list = map(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), compare_inv_mod_emissions, webdabEMEP_pth = WEBDABEMEP_PTH)
   
   #determine the number of plots per page so that they fit on A4 paper
   n_land = map_int(emiss_list, ~n_distinct(.x$Land))
