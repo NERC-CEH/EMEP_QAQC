@@ -53,11 +53,21 @@ EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 
 # output paths ------------------------------------------------------------
 ### qaqc output directory is by default the directory of the inner EMEP domain test run
-### please do not change - the paths are in this section so that you know where to look for output ;)
+
+### the output can be saved in a different directory in which case the QAQC_DIR !!!MUST!!! contain the project
+### name (and maybe a year as a subdirectory if multiple years are qaqced)
+### e.g. QAQC_DIR = dir_create(path('/home/tomlis65/QAQC_output/ONS/URBAN/2007'))
+
+### please do not change any other paths!
 
 QAQC_DIR = dir_create(path_dir(TEST_INNER_FNAME))
 
-qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
+if (QAQC_DIR != path_dir(TEST_INNER_FNAME)) { 
+  qaqc_pth_out = QAQC_DIR
+} else {
+  qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
+}
+
 report_pth_out = dir_create(path(qaqc_pth_out, 'Reports'))
 maps_pth_out = dir_create(path(qaqc_pth_out, 'Maps'))
 plots_pth_out = dir_create(path(qaqc_pth_out, 'Plots'))
