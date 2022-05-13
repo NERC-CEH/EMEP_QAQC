@@ -11,12 +11,12 @@ EMEP_CRS_STEREO2 = '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y
 
 # tasks -------------------------------------------------------------------
 
-PLOT_COMPARISON_MAPS = F
+PLOT_COMPARISON_MAPS = T
 CALCULATE_BUDGET = T
-PLOT_DSC = F
-COLLATE_MOBS = F
-SAVE_MOBS_RDS = F
-PLOT_MOBS_PDF = F
+PLOT_DSC = T
+COLLATE_MOBS = T
+SAVE_MOBS_RDS = T
+PLOT_MOBS_PDF = T
 COMPARE_EMISSIONS = T
 
 # input paths and fnames -------------------------------------------------------------------
