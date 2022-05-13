@@ -147,8 +147,8 @@ compare_file_size = function(test_pth, ref_pth) {
 }
 
 load_emep_data = function(emep_fname, emep_crs, vars = 'all', time_index = NULL) {
-  ###returns a list of stars_proxy objects containg vars
-  ###if vars not in emep data the function returns NULL
+  ###returns a list of stars_proxy objects containing vars
+  ###if vars are not in emep data, the function returns NULL
   
   ###!!!WIP - time slicing needs finishing!!!
   
@@ -1202,21 +1202,32 @@ plot_MBS_diff = function(MBS_dframe, MBS_table_pth = NULL, threshold = 5) {
   
   MBS2_strip = c(abs = 'Test - Reference (kg)', rel = 'Test - Reference (%)')
   
-  p1 = ggplot(MBS2) +
-    geom_hline(yintercept = 0, color = 'black', size = 0.2) +
-    geom_bar(aes(species, value), fill = '#5ab4ac', color = 'black', size = 0.1,
-             stat = 'identity', position = 'dodge', width = 0.8) +
-    geom_rect(data = (filter(MBS2, diff == 'rel') %>% slice(1)),
-              aes(xmin = -Inf, xmax = Inf, ymin = -threshold, ymax = threshold), fill = 'red', alpha = 0.2) +
-    facet_wrap(~diff, scales = 'free_x', labeller = as_labeller(MBS2_strip)) +
-    labs(x = NULL,
-         y = NULL) + 
-    coord_flip() +
-    theme_bw() +
-    theme(strip.background = element_rect(fill = 'gray50'),
-          strip.text = element_text(size = 10, color = 'black', face = 'bold'),
-          panel.grid.major = element_line(size = 0.1),
-          axis.text = element_text(size = 8))
+  if(nrow(MBS2) == 0) { #emissions in both runs are identical
+    p1 = ggplot(MBS2, aes(species, value)) +
+      annotation_custom(grid::textGrob('Emission data are identical'),
+                        xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+      labs(x = NULL,
+           y = NULL) +
+      coord_flip() +
+      theme_bw()
+  } else {
+    p1 = ggplot(MBS2) +
+      geom_hline(yintercept = 0, color = 'black', size = 0.2) +
+      geom_bar(aes(species, value), fill = '#5ab4ac', color = 'black', size = 0.1,
+               stat = 'identity', position = 'dodge', width = 0.8) +
+      geom_rect(data = (filter(MBS2, diff == 'rel') %>% slice(1)),
+                aes(xmin = -Inf, xmax = Inf, ymin = -threshold, ymax = threshold), fill = 'red', alpha = 0.2) +
+      facet_wrap(~diff, scales = 'free_x', labeller = as_labeller(MBS2_strip)) +
+      labs(x = NULL,
+           y = NULL) + 
+      coord_flip() +
+      theme_bw() +
+      theme(strip.background = element_rect(fill = 'gray50'),
+            strip.text = element_text(size = 10, color = 'black', face = 'bold'),
+            panel.grid.major = element_line(size = 0.1),
+            axis.text = element_text(size = 8))
+  }
+  
   p1
 }
 
