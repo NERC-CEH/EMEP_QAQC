@@ -143,7 +143,7 @@ compare_file_size = function(test_pth, ref_pth) {
            test = fs_bytes(test),
            ref = fs_bytes(ref))
   
-  d_content
+  d_content2
 }
 
 load_emep_data = function(emep_fname, emep_crs, vars = 'all', time_index = NULL) {
@@ -1313,6 +1313,22 @@ plot_blank = function() {
   p1
 } 
 
+format_file_size_tbl = function(file_size_df) {
+  gt_tbl = gt(file_size_df) %>% 
+    tab_header(title = md('**File Size Difference**')) %>% 
+    tab_style(style = list(cell_text(color = 'red')),
+              locations = cells_body(columns = rel_diff,
+                                     rows = abs(rel_diff) > 5)) %>% 
+    fmt_missing(columns = everything()) %>% 
+    cols_label(fname = 'File',
+               test = 'Test Run',
+               ref = 'Reference Run',
+               abs_diff = 'Size difference',
+               rel_diff = 'Size difference (%)') %>% 
+    cols_align(align = 'right',
+               columns = -fname)
+  gt_tbl
+}
 
 # THEME FUNCS -------------------------------------------------------------
 
