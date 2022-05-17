@@ -1315,7 +1315,7 @@ plot_blank = function() {
 
 format_file_size_tbl = function(file_size_df) {
   gt_tbl = gt(file_size_df) %>% 
-    tab_header(title = md('**File Size Difference**')) %>% 
+    #tab_header(title = md('**File Size Difference**')) %>% 
     tab_style(style = list(cell_text(color = 'red')),
               locations = cells_body(columns = rel_diff,
                                      rows = abs(rel_diff) > 5)) %>% 
@@ -1323,7 +1323,7 @@ format_file_size_tbl = function(file_size_df) {
     cols_label(fname = 'File',
                test = 'Test Run',
                ref = 'Reference Run',
-               abs_diff = 'Size difference',
+               abs_diff = 'Size difference (B)',
                rel_diff = 'Size difference (%)') %>% 
     cols_align(align = 'right',
                columns = -fname)
@@ -1441,6 +1441,25 @@ select_vars = function(vars = 'all', var_params_list, param) {
       unique(.)
   }
   vars_out
+}
+
+categorise_emep_vars = function(emep_vars) {
+  #takes a vector of emep_vars, splits them into 'emissions', 'surface concentrations',
+  #'deposition' and 'misc' categories and puts them in a tibble
+  emiss_vars = str_subset(emep_vars, '^Emis')
+  surf_vars = str_subset(emep_vars, '^SURF')
+  dep_vars = str_subset(emep_vars, '^(W|D)DEP')
+  misc_vars = base::setdiff(emep_vars, c(emiss_vars, surf_vars, dep_vars))
+  
+  emep_var_table = tibble(emiss_vars = list(sort(emiss_vars)),
+                          surf_vars = list(sort(surf_vars)),
+                          dep_vars = list(sort(dep_vars)),
+                          misc_vars = list(sort(misc_vars))) %>% 
+    pivot_longer(everything()) %>% 
+    mutate(value = map(value, `length<-`, max(lengths(value)))) %>% 
+    pivot_wider(names_from = name, values_from = value) %>% 
+    unnest(everything())
+  emep_var_table
 }
 
 
