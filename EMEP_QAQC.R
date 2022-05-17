@@ -56,7 +56,8 @@ if (COMPARE_EMISSIONS == T) {
   
   emiss_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
   page_titles = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), strip_time_res) %>% 
-    str_c('\n\n')
+    str_c('\n\n') %>% 
+    str_wrap(50)
   
   emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
                               marrangeGrob, ncol = 1)
