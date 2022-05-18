@@ -454,10 +454,10 @@ read_RunLog_emissions = function(RunLog_pth) {
   t_lengths = diff(c(t_start, t_end), 1) - 2
   
   read_RunLog_tables = function(s, n) {
-    t_names = names(read_table(RunLog_pth, skip = s, n_max = 0, show_col_types = F))
+    t_names = names(read_table(RunLog_pth, skip = s, n_max = 0))
     #the following if chunk is needed due to EMEP 4.17 having different RunLog.out formatting
     ##t_data only needed to know the number of columns
-    t_data = read_table(RunLog_pth, skip = s + 1, n_max = 0, show_col_types = F)
+    t_data = read_table(RunLog_pth, skip = s + 1, n_max = 0)
     if (length(t_data) == length(t_names) + 1) {
       CC_index = str_which(t_names, 'CC')
       t_names = t_names %>% 
@@ -497,7 +497,7 @@ compare_run_emissions = function(test_pth, ref_pth, save_file = T, mbs_table_fna
     path_dir() %>% 
     path('MassBudgetSummary.txt') %>% 
     set_names(c('test', 'ref')) %>% 
-    map_dfr(read_table, skip = 1, col_names = T, show_col_types = F, .id = 'run') %>% 
+    map_dfr(read_table, skip = 1, col_names = T, .id = 'run') %>% 
     select(run, species = Spec, emission = emis) %>% 
     pivot_wider(id_cols = species, names_from = run, values_from = emission) %>% 
     mutate(abs_diff = test - ref,
