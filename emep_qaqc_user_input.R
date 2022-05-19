@@ -104,6 +104,13 @@ COMP_MAP_VARS = 'all'          # variables for comparison maps
 # if 'all' then every var for which the calculation and plotting 
 # parameters are set (see 'emep_vars_parameters0.R') are used
 
+COMP_MAP_VARS_REPORT = c('SURF_ug_NO2',
+                         'SURF_ug_NH3',
+                         'SURF_ppb_O3',
+                         'SURF_ug_PM25_rh50') #these will be plotted in the report 
+
+CMVR_INNER = T # if TRUE only the inner domain will be plotted in the report
+
 AUTO_NETWORK = 'aurn'          # the automatic monitoring network used for observation data
 # can currently be any or all of 'aurn', 'saqn', 'waqn', 'aqe', 'nian' 
 # ADDITIONALLY a path to an rds file containing info on other monitoring sites can be included
@@ -112,6 +119,8 @@ AUTO_NETWORK = 'aurn'          # the automatic monitoring network used for obser
 # - the file MUST also contain a column called 'network' with full paths to the actual monitoring data csv files
 # - the csv data files must have columns: 'code', 'date' (which is hour starting) and poll names as in OBSERVED_POLLS
 #   below
+
+MOBS_STATION_REPORT = c('CHBO', 'ACTH', 'AGRN', 'KC1', 'BRS8', 'GLKP', 'MY1') # daily means of these will be plotted in the report
 
 OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pollutants -if any other compounds added
 # their plotting params must be set in 
