@@ -224,7 +224,7 @@ if (!emiss_lgl[1]) {
 if (!emiss_lgl[2]) {
   em_table_I = emiss_sublist[[2]] %>%
     select(Land, pollutant, rel_diff) %>%
-    mutate(pollutant = gt_var_labeller[pollutant])
+    mutate(pollutant = gt_var_labeller[pollutant]) %>% 
     gt() %>% 
     cols_label(Land = 'Country/Region',
                pollutant = 'Species',
