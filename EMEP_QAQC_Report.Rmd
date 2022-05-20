@@ -218,7 +218,12 @@ if (!emiss_lgl[1]) {
     fmt_number(columns = rel_diff, decimals = 1) %>% 
     tab_options(data_row.padding = px(3),
                 table.font.size = pct(95),
-                table.align='left')
+                table.align='left') %>% 
+    text_transform(location = cells_body(columns = pollutant),
+                   fn = function(x) {
+                     str_replace_all(x, '\\[', "<sub>") %>% 
+                       str_replace_all('\\]', "</sub>")
+                   })
 } 
 
 if (!emiss_lgl[2]) {
@@ -234,7 +239,12 @@ if (!emiss_lgl[2]) {
     fmt_number(columns = rel_diff, decimals = 1) %>% 
     tab_options(data_row.padding = px(3),
                 table.font.size = pct(95),
-                table.align='left')
+                table.align='left') %>% 
+    text_transform(location = cells_body(columns = pollutant),
+                   fn = function(x) {
+                     str_replace_all(x, '\\[', "<sub>") %>% 
+                       str_replace_all('\\]', "</sub>")
+                   })
 }
 
 
