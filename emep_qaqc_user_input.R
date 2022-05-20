@@ -77,16 +77,16 @@ data_pth_out = dir_create(path(qaqc_pth_out, 'Data'))
 # output fnames -----------------------------------------------------------
 ### provide filenames for qaqc output
 
-BUDGET_TABLE_FNAME = 'Budget_table0.csv'              # deposition and surf conc summary (DSC)
+BUDGET_TABLE_FNAME = 'Budget_table.csv'              # deposition and surf conc summary (DSC)
 BUDGET_PLOT_FNAME = 'Budget_diff.png'                 # budget_table plotted if exactly 2 runs are being compared
-DSC_MAPS_FNAME = 'DSC_maps0.pdf'                      # DSC maps pdf
-COMP_MAPS_FNAME = 'COMP_maps0.pdf'                    # test and reference run comparison maps
+DSC_MAPS_FNAME = 'DSC_maps.pdf'                      # DSC maps pdf
+COMP_MAPS_FNAME = 'COMP_maps.pdf'                    # test and reference run comparison maps
 MOBS_STATS_FNAME = 'Mobs_modstats.csv'                # summary statistics table of modelled - observed 
 MBS_TABLE_FNAME = 'MBS_diff.csv'                      # emission comparison between test and ref runs in MassBudgetSummary.txt
 #  - will be preceded by domain name (e.g. EU_...)
 MBS_PLOT_FNAME = 'MBS_diff.png'                       # MBS table plotted (do not change the file format)
 #  - will be preceded by domain name
-INV_MOD_EMISS_TABLE_FNAME = 'inv_mod_emiss_table0.csv'# emission comparison between EMEP/NAEI inventory and model input in RunLog.out
+INV_MOD_EMISS_TABLE_FNAME = 'inv_mod_emiss_table.csv'# emission comparison between EMEP/NAEI inventory and model input in RunLog.out
 #  - will be preceded by domain name
 INV_MOD_EMISS_PLOT_FNAME = 'inv_mod_emiss.pdf'        # inv_mod_emiss_table plotted
 #  - will be preceded by domain name
