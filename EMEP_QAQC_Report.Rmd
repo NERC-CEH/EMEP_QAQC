@@ -712,7 +712,7 @@ mobs_vartbl = enframe(mobs_polls) %>%
 
 mobs_stats_all_gtbl = mobs_stats_all %>% 
   select(-site_type_grp) %>% 
-  mutate(pollutant = gt_var_labeller[pollutant]) %>%
+  mutate(pollutant = gt_var_labeller[as.character(pollutant)]) %>%
   gt() %>%
   tab_options(data_row.padding = px(3),
                 table.font.size = pct(95),
