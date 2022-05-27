@@ -74,7 +74,7 @@ Ref path: `r ref_run_info`
 fsize_df = compare_file_size(TEST_OUTER_FNAME, REF_OUTER_FNAME) %>%
   format_file_size_tbl() %>% 
   tab_options(data_row.padding = px(3),
-              table.font.size = pct(95),
+              #table.font.size = pct(95),
               table.align='left')
 fsize_df
 ```
@@ -86,7 +86,7 @@ fsize_df
 fsize_df = compare_file_size(TEST_INNER_FNAME, REF_INNER_FNAME) %>%
   format_file_size_tbl() %>% 
   tab_options(data_row.padding = px(3),
-              table.font.size = pct(95),
+              #table.font.size = pct(95),
               table.align='left')
 fsize_df
 ```
@@ -128,7 +128,7 @@ if (!MBS_lgl[1]) {
                columns = rel_diff) %>% 
     fmt_number(columns = rel_diff, decimals = 1) %>% 
     tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left')
 } 
 
@@ -142,7 +142,7 @@ if (!MBS_lgl[2]) {
                columns = rel_diff) %>% 
     fmt_number(columns = rel_diff, decimals = 1) %>% 
     tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left')
 }
 
@@ -168,34 +168,6 @@ walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = '
 
 #for report:
 
-#show GB emissions
-if (any(str_detect(emiss_domains, '^UK'))) {
-  GB_emiss_tbl = emiss_list[str_detect(emiss_domains, '^UK')] %>%
-    flatten_df() %>% 
-    filter(Land == 'GB') %>% 
-    select(-Land) %>% 
-    mutate(pollutant = gt_var_labeller[pollutant],
-           across(where(is.double), ~round(.x, 1))) %>%
-    relocate(model, .before = inventory) %>% 
-    gt() %>% 
-    tab_header(title = md('**GB Emissions**')) %>% 
-    cols_label(pollutant = 'Species',
-               inventory = 'Inventory',
-               model = 'Model',
-               abs_diff = 'Difference (Gg)',
-               rel_diff = 'Difference (%)') %>% 
-    cols_align(align = 'right',
-               columns = -pollutant) %>% 
-    tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
-                table.align='left') %>% 
-    text_transform(location = cells_body(columns = pollutant),
-                   fn = function(x) {
-                     str_replace_all(x, '\\[', "<sub>") %>% 
-                       str_replace_all('\\]', "</sub>")
-                   })
-}
-
 #get paths with mod_inv comp tables
 emiss_list_tbl_pths = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), ~paste0(extract_domain_from_fpath(.x), '_', INV_MOD_EMISS_TABLE_FNAME))
 MBS_tbl_pths = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), ~paste0(extract_domain_from_fpath(.x), '_', MBS_TABLE_FNAME))
@@ -217,7 +189,7 @@ if (!emiss_lgl[1]) {
                columns = rel_diff) %>% 
     fmt_number(columns = rel_diff, decimals = 1) %>% 
     tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left') %>% 
     text_transform(location = cells_body(columns = pollutant),
                    fn = function(x) {
@@ -238,7 +210,7 @@ if (!emiss_lgl[2]) {
                columns = rel_diff) %>% 
     fmt_number(columns = rel_diff, decimals = 1) %>% 
     tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left') %>% 
     text_transform(location = cells_body(columns = pollutant),
                    fn = function(x) {
@@ -283,7 +255,35 @@ Emissions of the following species in the test run differ by more than `r EMISS_
 
 
 ### `r extract_domain_from_fpath(TEST_INNER_FNAME)` Domain
-`r GB_emiss_tbl`
+
+```{r, UK_emission_tbl}
+#
+#show UK domain emissions
+if (any(str_detect(emiss_domains, '^UK'))) {
+  UK_emiss_tbl = emiss_list[str_detect(emiss_domains, '^UK')] %>%
+    flatten_df() %>% 
+    select(Land, pollutant, model) %>% 
+    mutate(pollutant = gt_var_labeller[pollutant],
+           across(where(is.double), ~round(.x, 1))) %>%
+    pivot_wider(names_from = pollutant, values_from = model) %>% 
+    gt() %>% 
+    tab_header(title = md('**UK Domain Emissions**')) %>% 
+    cols_label(Land = 'Country/Region)',
+               co = 'CO',
+               nh3 = html('nh<sup>3</sup>'),
+               voc = 'VOC',
+               nox = html('NO<sup>x</sup>'),
+               pm25 = html('PM<sup>2.5</sup>'),
+               pmco = html('PM<sup>Coarse</sup>'),
+               sox = html('SO<sup>x</sup>')) %>% 
+    cols_align(align = 'right',
+               columns = -Land) %>% 
+    tab_options(data_row.padding = px(3),
+                #table.font.size = pct(95),
+                table.align='left')
+  UK_emiss_tbl
+}
+```
 
 Differences in emissions between the test run and EMEP inventory are saved in **`r emiss_list_tbl_pths[2]`** and plotted in **`r out_pths[2]`**. Similarly, differences in emissions between the test and reference runs are saved in **`r MBS_tbl_pths[2]`**, and plotted in **`r path(plots_pth_out, str_c(MBS_domains, '_', MBS_PLOT_FNAME))[2]`**, respectively..
 
@@ -366,7 +366,7 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
                dep_vars = 'Deposition Vars',
                misc_vars = 'Other Vars') %>% 
     tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left')
   
   budget_df3 = budget_df2 %>% 
@@ -383,7 +383,7 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
                  columns = rel_diff) %>% 
       fmt_number(columns = rel_diff, decimals = 1) %>% 
       tab_options(data_row.padding = px(3),
-                  table.font.size = pct(95),
+                  #table.font.size = pct(95),
                   table.align='left')
   } 
   
@@ -474,7 +474,7 @@ if (PLOT_COMPARISON_MAPS == T) {
                dep_vars = 'Deposition Vars',
                misc_vars = 'Other Vars') %>% 
     tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left')
   
   #create plots for vars in COMP_MAP_VARS_REPORT
@@ -560,7 +560,7 @@ if(COLLATE_MOBS == T) {
   #get a 2D slice of the EMEP output to check if all sites are in the modelled domain
   #loads quicker to check on the fullrun data
   emep_slice = load_emep_data(str_replace(obs_fname, '_[^_]+$', '_fullrun.nc'),
-                              emep_crs = EMEP_CRS, vars = names(mobs_polls)[1])[[1]] %>%
+                              emep_crs = EMEP_CRS, vars = mobs_polls[1])[[1]] %>%
     st_as_stars()
 
   sites_in = get_sites_in_domain(sites_geo, emep_slice)
@@ -702,7 +702,7 @@ mobs_vartbl = enframe(mobs_polls) %>%
   cols_label(name = 'Species',
              value = 'EMEP Var') %>% 
   tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left') %>% 
   text_transform(location = cells_body(columns = name),
                  fn = function(x) {
@@ -715,7 +715,7 @@ mobs_stats_all_gtbl = mobs_stats_all %>%
   mutate(pollutant = gt_var_labeller[as.character(pollutant)]) %>%
   gt() %>%
   tab_options(data_row.padding = px(3),
-                table.font.size = pct(95),
+                #table.font.size = pct(95),
                 table.align='left') %>% 
   cols_align(align = 'right',
              columns = -pollutant) %>% 

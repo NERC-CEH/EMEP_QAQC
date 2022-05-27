@@ -197,7 +197,7 @@ if(COLLATE_MOBS == T) {
   #get a 2D slice of the EMEP output to check if all sites are in the modelled domain
   #loads quicker to check on the fullrun data
   emep_slice = load_emep_data(str_replace(obs_fname, '_[^_]+$', '_fullrun.nc'),
-                              emep_crs = EMEP_CRS, vars = names(mobs_polls)[1])[[1]] %>% 
+                              emep_crs = EMEP_CRS, vars = mobs_polls[1])[[1]] %>% 
     st_as_stars() 
   
   sites_in = get_sites_in_domain(sites_geo, emep_slice)
