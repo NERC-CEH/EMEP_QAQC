@@ -355,24 +355,6 @@ collate_obs_mod_stars = function(site_geo_df, emep_pth, poll_lookup, emep_crs = 
   # 
 }
 
-calc_diff_stars = function(stars1, stars2, run_labs = c('run1', 'run2')) {
-  if (names(stars1) != names(stars2)) {
-    stop('calculating different emep vars is not ')
-  }
-  
-  stars_diff = c(stars1, stars2) %>% 
-    set_names(run_labs) %>% 
-    mutate(abs_diff := !!sym(run_labs[1]) - !!sym(run_labs[2]),
-           rel_diff := (!!sym(run_labs[1]) - !!sym(run_labs[2]))/!!sym(run_labs[2]) * 100) 
-  
-  
-  if (all(near(as.numeric(stars_diff$abs_diff), 0))) {
-    stars_diff = stars_diff %>% 
-      mutate(abs_diff = NA_real_,
-             rel_diff = NA_real_)
-  }
-  stars_diff
-}
 
 calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
                                outer_test_fname = NA, outer_ref_fname = NA,
@@ -392,6 +374,32 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
   )
   if (is.na(plot_mode)) stop('invalid combination of paths')
   
+  calc_diff_stars = function(stars1, stars2) {
+    
+    stars_diff = tryCatch(
+      error = function(cnd) {
+        names(stars1) = run_labels[1]
+        names(stars2) = run_labels[2]
+        list(stars1, stars2)
+      },
+      c(stars1, stars2) %>% 
+        set_names(run_labels) %>% 
+        mutate(abs_diff := !!sym(run_labels[1]) - !!sym(run_labels[2]),
+               rel_diff := (!!sym(run_labels[1]) - !!sym(run_labels[2]))/!!sym(run_labels[2]) * 100)
+    )
+    
+    if ('abs_diff' %in% names(stars_diff)) {
+      if (all(near(as.numeric(stars_diff$abs_diff), 0))) {
+        stars_diff = stars_diff %>% 
+          mutate(abs_diff = NA_real_,
+                 rel_diff = NA_real_)
+      }
+      stars_diff = names(stars_diff) %>% 
+        map(select, .data = stars_diff)
+    }
+    stars_diff
+  }
+  
   #calculate the abs and rel differences between test and reference runs
   if (plot_mode =='both_diff') {
     
@@ -406,8 +414,8 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     i_t = emep_data[[inner_test_fname]]
     i_r = emep_data[[inner_ref_fname]]
     
-    o_diff = calc_diff_stars(o_t, o_r, run_labs = run_labels)
-    i_diff = calc_diff_stars(i_t, i_r, run_labs = run_labels)
+    o_diff = calc_diff_stars(o_t, o_r)
+    i_diff = calc_diff_stars(i_t, i_r)
     return(list(o_diff, i_diff) %>% 
              set_names(str_c(var, c('outer', 'inner'), sep = '_')))
   }
@@ -422,7 +430,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     
     o_t = emep_data[[outer_test_fname]]
     o_r = emep_data[[outer_ref_fname]]
-    o_diff = calc_diff_stars(o_t, o_r, run_labs = run_labels)
+    o_diff = calc_diff_stars(o_t, o_r)
     return(list(o_diff) %>% 
              set_names(str_c(var, c('outer'), sep = '_')))
     
@@ -439,7 +447,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     
     i_t = emep_data[[inner_test_fname]]
     i_r = emep_data[[inner_ref_fname]]
-    i_diff = calc_diff_stars(i_t, i_r, run_labs = run_labels)
+    i_diff = calc_diff_stars(i_t, i_r)
     return(list(i_diff) %>% 
              set_names(str_c(var, c('inner'), sep = '_')))
   }
@@ -622,7 +630,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   #download country borders for plotting
   boundaries = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
     st_cast("MULTILINESTRING") %>%  
-    st_transform(st_crs(diff_list[[1]]))
+    st_transform(st_crs(diff_list[[1]][[1]]))
   
   #breaks and labels for colorbars
   map_breaks = VAR_PARAMS_LIST[[var]][['map_levs']]
@@ -658,99 +666,97 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     top_title = var
   }
   
-  p1 = ggplot() +
-    geom_stars(data = cut(select(diff_list[[1]], 1), breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
-  if (length(diff_list) == 2) {
+  p1_list = map(diff_list, 1)
+  p1 = ggplot()
+  for (i in seq_along(p1_list)) {
     p1 = p1 +
-      geom_stars(data = cut(select(diff_list[[2]], 1), breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
+      geom_stars(data = cut(p1_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
   }
-  
-  p1 = p1 +
-    geom_sf(data = st_crop(boundaries, diff_list[[1]]) , color = "black", fill = NA, size = 0.07) +
+  p1 = p1 + 
+    geom_sf(data = st_crop(boundaries, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
                       labels = map_labs,
                       guide = guide_coloursteps(title.position = 'top',
                                                 title.hjust = 0.5, frame.colour = 'black',
                                                 frame.linewidth = 0.1,
                                                 barwidth = unit(6.7, 'inches'))) +
-    labs(title = names(diff_list[[1]])[1],
+    labs(title = names(diff_list[[1]][[1]]),
          fill = fill_labs[1])
   
   p1 = theme_emep_diffmap(p1)
   
-  p2 = ggplot() +
-    geom_stars(data = cut(select(diff_list[[1]], 2), breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
-  if (length(diff_list) == 2) {
+  p2_list = map(diff_list, 2)
+  p2 = ggplot()
+  for (i in seq_along(p2_list)) {
     p2 = p2 +
-      geom_stars(data = cut(select(diff_list[[2]], 2), breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
+      geom_stars(data = cut(p2_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
   }
-  p2 = p2 +
-    geom_sf(data = st_crop(boundaries, diff_list[[1]]) , color = "black", fill = NA, size = 0.07) +
+  p2 = p2 + 
+    geom_sf(data = st_crop(boundaries, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
                       labels = map_labs,
                       guide = guide_coloursteps(title.position = 'top',
                                                 title.hjust = 0.5, frame.colour = 'black',
                                                 frame.linewidth = 0.1,
                                                 barwidth = unit(6.7, 'inches'))) +
-    labs(title = names(diff_list[[1]])[2],
+    labs(title = names(diff_list[[1]][[2]]),
          fill = fill_labs[2])
   
   p2 = theme_emep_diffmap(p2)
   
-  p3 = ggplot() +
-    geom_stars(data = cut(select(diff_list[[1]], abs_diff), breaks = diff_breaks))
-  if (length(diff_list) == 2) {
-    p3 = p3 +
-      geom_stars(data = cut(select(diff_list[[2]], abs_diff), breaks = diff_breaks))
-  }
-  p3 = p3 +
-    geom_sf(data = st_crop(boundaries, diff_list[[1]]), color = "black", fill = NA, size = 0.07) + 
-    scale_fill_manual(values = ncl_rwb, drop = F, 
-                      labels = diff_labels,
-                      guide = guide_coloursteps(title.position = 'top',
-                                                title.hjust = 0.5, frame.colour = 'black',
-                                                frame.linewidth = 0.1,
-                                                barwidth = unit(3.2, 'inches'))) +
-    labs(title = paste0(names(diff_list[[1]])[1], ' - ', names(diff_list[[1]])[2], ' (abs)'),
-         fill = fill_labs[3])
-  
-  p3 = theme_emep_diffmap(p3)
-  
-  p4 = ggplot() +
-    geom_stars(data = cut(select(diff_list[[1]], rel_diff), breaks = c(-1e6, seq(-100, 100, 10), 1e6))) 
-  if (length(diff_list) == 2) {
-    p4 = p4 +
-      geom_stars(data = cut(select(diff_list[[2]], rel_diff), breaks = c(-1e6, seq(-100, 100, 10), 1e6)))
-  }
-  p4 = p4 +
-    geom_sf(data = st_crop(boundaries, diff_list[[1]]), color = "black", fill = NA, size = 0.07) + 
-    scale_fill_manual(values = ncl_rwb, drop = F, 
-                      labels = diff_rel_labels,
-                      guide = guide_coloursteps(title.position = 'top',
-                                                title.hjust = 0.5, frame.colour = 'black',
-                                                frame.linewidth = 0.1,
-                                                barwidth = unit(3.2, 'inches'))) +
-    labs(title = paste0(names(diff_list[[1]])[1], ' - ', names(diff_list[[1]])[2], ' (rel)'),
-         fill = fill_labs[4])
-  
-  p4 = theme_emep_diffmap(p4)
-  
-  if (length(diff_list) == 1 & !(all(is.na(diff_list[[1]]$abs_diff)))) {
-    
-  } else if (length(diff_list) == 2) {
-    if (!(all(is.na(diff_list[[1]]$abs_diff)) & all(is.na(diff_list[[2]]$abs_diff)))) {
-      
-    } else {
+  p3_list = map(diff_list, 3) %>% 
+    compact()
+  if (length(p3_list) > 0) {
+    p3 = ggplot()
+    for (i in seq_along(p3_list)) {
       p3 = p3 +
-        annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
-        annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
-        theme(legend.position = 'none')
-      p4 = p4 +
-        annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
-        annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
-        theme(legend.position = 'none')
+        geom_stars(data = cut(p3_list[[i]], breaks = diff_breaks))
     }
+    p3 = p3 +
+      geom_sf(data = st_crop(boundaries, p3_list[[1]]), color = "black", fill = NA, size = 0.07) + 
+      scale_fill_manual(values = ncl_rwb, drop = F, 
+                        labels = diff_labels,
+                        guide = guide_coloursteps(title.position = 'top',
+                                                  title.hjust = 0.5, frame.colour = 'black',
+                                                  frame.linewidth = 0.1,
+                                                  barwidth = unit(3.2, 'inches'))) +
+      labs(title = paste0(names(diff_list[[1]][[1]]), ' - ', names(diff_list[[1]][[2]]), ' (abs)'),
+           fill = fill_labs[3])
+    
+    p3 = theme_emep_diffmap(p3)
   } else {
+    p3 = create_blank_plot()
+  }
+  
+  p4_list = map(diff_list, 4) %>% 
+    compact()
+  if (length(p4_list) > 0) {
+    p4 = ggplot()
+    for (i in seq_along(p4_list)) {
+      p4 = p4 +
+        geom_stars(data = cut(p4_list[[i]], breaks = c(-1e6, seq(-100, 100, 10), 1e6)))
+    }
+    p4 = p4 +
+      geom_sf(data = st_crop(boundaries, p4_list[[1]]), color = "black", fill = NA, size = 0.07) + 
+      scale_fill_manual(values = ncl_rwb, drop = F, 
+                        labels = diff_rel_labels,
+                        guide = guide_coloursteps(title.position = 'top',
+                                                  title.hjust = 0.5, frame.colour = 'black',
+                                                  frame.linewidth = 0.1,
+                                                  barwidth = unit(3.2, 'inches'))) +
+      labs(title = paste0(names(diff_list[[1]][[1]]), ' - ', names(diff_list[[1]][[2]]), ' (rel)'),
+           fill = fill_labs[4])
+    
+    p4 = theme_emep_diffmap(p4)
+  } else {
+    p4 = create_blank_plot()
+  }
+  
+  identical_data = map_dfr(p3_list, as_tibble) %>%
+    drop_na() %>%
+    nrow() == 0
+  
+  if (identical_data) {
     p3 = p3 +
       annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
       annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
@@ -768,7 +774,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     annotate_figure(top = text_grob(top_title, size = 20, color = '#473C8B'))
   
   pp
-  
+
 }
 
 plot_DSC = function(stars_object, evp_list, pretty_lab = F, display_summary = T) {
@@ -1587,16 +1593,15 @@ format_maps_page_title = function(outer_test_pth = NA, outer_ref_pth = NA,
       map_chr(~str_sub(.x, end = -4) %>% 
                 str_split('(emiss\\d{4}_)|(_\\d{4}_)') %>% 
                 flatten_chr() %>% 
-                .[2]) %>% 
-      unique(.)
-    domain_str = paste0(domains[1], '(+', domains[2], ')' )
+                .[2]) 
+
     test_title = outer_test_pth %>% 
       str_sub(end = -4) %>% 
-      str_replace(paste0('_', domains[1], '_'), paste0('_', domain_str, '_')) %>% 
+      str_replace(paste0('_', domains[1], '_'), paste0('_', domains[1], '(+', domains[3], ')' , '_')) %>% 
       str_replace('_[^_]+$', '') #strip everything after the last underscore from filename
     ref_title = outer_ref_pth %>% 
       str_sub(end = -4) %>% 
-      str_replace(paste0('_', domains[1], '_'), paste0('_', domain_str, '_')) %>% 
+      str_replace(paste0('_', domains[2], '_'), paste0('_', domains[2], '(+', domains[4], ')' , '_')) %>% 
       str_replace('_[^_]+$', '')
     
   } else {
