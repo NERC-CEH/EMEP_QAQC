@@ -1366,6 +1366,27 @@ theme_DSC = function(emep_plot) {
     )
 }
 
+theme_site_map = function(map_plot) {
+  map_plot = map_plot +
+    scale_y_continuous(expand = c(0,0)) + 
+    scale_x_continuous(expand = c(0,0)) + 
+    scale_shape_manual(values = c(Road = 1, Urban = 2, Industrial = 4, Rural = 0)) +
+    scale_color_manual(values = c(Road = '#e7298a', Urban = '#7570b3', Industrial = '#d95f02', Rural = '#1b9e77')) +
+    labs(color = 'Site Type',
+         shape = 'Site Type') +
+    theme(panel.background = element_rect(fill = '#deebf7', color = 'black'),
+          panel.border = element_rect(fill = NA, color = 'black'),
+          panel.grid.major = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          axis.title = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          legend.position = c(0.99, 0.99),
+          legend.justification = c(1, 1),
+          legend.background = element_rect(fill = 'transparent'),
+          legend.key = element_rect(fill = '#deebf7'))
+}
+
 
 # COLORSCALE FUNCS --------------------------------------------------------
 

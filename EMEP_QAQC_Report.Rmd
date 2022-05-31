@@ -58,6 +58,10 @@ test_run_info = na.omit(c(TEST_INNER_FNAME, TEST_OUTER_FNAME)) %>%
 ref_run_info = na.omit(c(REF_INNER_FNAME, REF_OUTER_FNAME)) %>% 
   path_dir() %>% 
   path_common()
+
+inner_domain = extract_domain_from_fpath(TEST_INNER_FNAME)
+outer_domain = extract_domain_from_fpath(TEST_OUTER_FNAME)
+EMEP_domains = c(outer_domain, inner_domain)
 ```
 
 ## Run Info
@@ -100,7 +104,7 @@ MBS_list = map2(c(TEST_OUTER_FNAME, TEST_INNER_FNAME),
                 c(REF_OUTER_FNAME, REF_INNER_FNAME), 
                 compare_run_emissions, save_file = F, mbs_table_fname = MBS_TABLE_FNAME)
 
-MBS_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
+EMEP_domains = c(outer_domain, inner_domain)
 MBS_plot_captions = c(str_c('Test: ', str_replace(path_file(TEST_OUTER_FNAME), '_[^_]+$', ''),'\n',
                             'Ref: ', str_replace(path_file(REF_OUTER_FNAME), '_[^_]+$', '')),
                       str_c('Test: ', str_replace(path_file(TEST_INNER_FNAME), '_[^_]+$', ''),'\n',
@@ -110,7 +114,7 @@ MBS_plots = map(MBS_list, plot_MBS_diff, threshold = EMISS_DIFF_THRESHOLD) %>%
   map2(MBS_plot_captions, ~.x + labs(caption = .y) + theme(plot.caption = element_text(size = 6, face = 'italic') ))
 
 
-walk2(MBS_plots, path(plots_pth_out, str_c(MBS_domains, '_', MBS_PLOT_FNAME)),
+walk2(MBS_plots, path(plots_pth_out, str_c(EMEP_domains, '_', MBS_PLOT_FNAME)),
       ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
 
 #for report filter only those over emission threshold
@@ -156,13 +160,12 @@ ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L, .x >= 11 && .x <= 20 ~ 2L, .x > 2
 
 emiss_plot_list = map(emiss_list, plot_emiss_diff, threshold = EMISS_DIFF_THRESHOLD)
 
-emiss_domains = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), extract_domain_from_fpath)
 page_titles = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), strip_time_res) %>%
   str_c('\n\n')
 
 emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
                             marrangeGrob, ncol = 1)
-out_pths = path(plots_pth_out, str_c(emiss_domains, '_', INV_MOD_EMISS_PLOT_FNAME))
+out_pths = path(plots_pth_out, str_c(EMEP_domains, '_', INV_MOD_EMISS_PLOT_FNAME))
 
 walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = 'a4', height = 10, width = 7))
 
@@ -224,7 +227,7 @@ if (!emiss_lgl[2]) {
 
 ### `r extract_domain_from_fpath(TEST_OUTER_FNAME)` Domain
 
-Differences in emissions between the test run and EMEP inventory are saved in **`r emiss_list_tbl_pths[1]`** and plotted in **`r out_pths[1]`**. Similarly, differences in emissions between the test and reference runs are saved in **`r MBS_tbl_pths[1]`**, and plotted in **`r path(plots_pth_out, str_c(MBS_domains, '_', MBS_PLOT_FNAME))[1]`**, respectively.
+Differences in emissions between the test run and EMEP inventory are saved in **`r emiss_list_tbl_pths[1]`** and plotted in **`r out_pths[1]`**. Similarly, differences in emissions between the test and reference runs are saved in **`r MBS_tbl_pths[1]`**, and plotted in **`r path(plots_pth_out, str_c(EMEP_domains, '_', MBS_PLOT_FNAME))[1]`**, respectively.
 
 `r if(!emiss_lgl[1]) {"\\begin{comment}"}`
 
@@ -259,8 +262,8 @@ Emissions of the following species in the test run differ by more than `r EMISS_
 ```{r, UK_emission_tbl}
 #
 #show UK domain emissions
-if (any(str_detect(emiss_domains, '^UK'))) {
-  UK_emiss_tbl = emiss_list[str_detect(emiss_domains, '^UK')] %>%
+if (any(str_detect(EMEP_domains, '^UK'))) {
+  UK_emiss_tbl = emiss_list[str_detect(EMEP_domains, '^UK')] %>%
     flatten_df() %>% 
     select(Land, pollutant, model) %>% 
     mutate(pollutant = gt_var_labeller[pollutant],
@@ -285,7 +288,7 @@ if (any(str_detect(emiss_domains, '^UK'))) {
 }
 ```
 
-Differences in emissions between the test run and EMEP inventory are saved in **`r emiss_list_tbl_pths[2]`** and plotted in **`r out_pths[2]`**. Similarly, differences in emissions between the test and reference runs are saved in **`r MBS_tbl_pths[2]`**, and plotted in **`r path(plots_pth_out, str_c(MBS_domains, '_', MBS_PLOT_FNAME))[2]`**, respectively..
+Differences in emissions between the test run and EMEP inventory are saved in **`r emiss_list_tbl_pths[2]`** and plotted in **`r out_pths[2]`**. Similarly, differences in emissions between the test and reference runs are saved in **`r MBS_tbl_pths[2]`**, and plotted in **`r path(plots_pth_out, str_c(EMEP_domains, '_', MBS_PLOT_FNAME))[2]`**, respectively..
 
 `r if(!emiss_lgl[2]) {"\\begin{comment}"}`
 
@@ -640,6 +643,42 @@ if(COLLATE_MOBS == T) {
     mobs_data_pths = path(data_pth_out, paste0(names(mobs_list), '_mod_obs'), ext = 'rds')
     future_walk2(mobs_wide, mobs_data_pths, write_rds, .options = furrr_options(seed = T))
   }
+  
+  #for report:
+  ##map of used monitoring stations
+  
+  country_borders = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
+    select(name_sort) %>% 
+    st_transform(st_crs(emep_slice)) %>% 
+    st_crop(emep_slice)
+  
+  site_plot = ggplot() +
+    geom_sf(data = country_borders, fill = '#CCCCCC', color = 'black')
+  
+  if (str_detect(inner_domain, 'UK')) {
+    UK_roads = st_read('UK_geo_data/Trunk_roads.gpkg', stringsAsFactors = F) %>% 
+      st_transform(st_crs(country_borders))
+    site_plot = site_plot +
+      geom_sf(data = UK_roads, color = '#60676f', size = 0.2)
+  }  
+  
+  site_plot_all = site_plot +
+    geom_sf(data = st_transform(sites_geo, st_crs(country_borders)), aes(color = site_type_grp, shape = site_type_grp), stroke = 1)
+  site_plot_all = theme_site_map(site_plot_all) +
+    ggtitle('Location of monitoring sites')
+  
+  #select just sites that show time series in the report
+  sites_geo_map_sub = sites_geo %>% 
+  st_transform(st_crs(country_borders)) %>% 
+  filter(code %in% MOBS_STATION_REPORT_TSERIES)
+  
+  site_plot_selected = site_plot +
+    geom_sf(data = sites_geo_map_sub, aes(color = site_type_grp, shape = site_type_grp), stroke = 1) +
+    ggrepel::geom_label_repel(data = sites_geo_map, aes(label = code, color = site_type_grp, geometry = geometry),
+                              stat = 'sf_coordinates', show.legend = F)
+  site_plot_selected = theme_site_map(site_plot_selected) +
+    ggtitle('Location of selected monitoring sites')
+
 }
 
 if (PLOT_MOBS_PDF == T) {
@@ -767,7 +806,10 @@ if (T %in% custom_lgl) {
 Hourly modelled concentrations have been compared with observations for the following species:
 `r mobs_vartbl`
 
-Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **`r path(data_pth_out, '00Sites_used.rds')`**.
+Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **`r path(data_pth_out, '00Sites_used.rds')`** and shown in the map below.
+
+`r site_plot_all`
+
 Model evaluation stats for all pollutants across all sites with data capture > 75% are shown in the table below and are saved in **`r path(tables_pth_out, MOBS_STATS_FNAME)`**. Additionally, scatter plots of modelled vs observed annual mean concentrations per pollutant and site type group are saved in **`r path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf')`**.
 
 `r mobs_stats_all_gtbl`
@@ -776,12 +818,14 @@ Model evaluation stats for all pollutants across all sites with data capture > 7
 
 ```{r, mobs_time_series, echo = F, fig.height=18}
 
+site_plot_selected
+
 #add station codes to the list items so that stations for the report can be selected from mobs_list
 if (is.null(names(mobs_list))) {
   names(mobs_list) = mobs_list %>% 
     map_chr(~pull(.x, code) %>% unique)
 }
-report_mobs_list = mobs_list[MOBS_STATION_REPORT] 
+report_mobs_list = mobs_list[MOBS_STATION_REPORT_TSERIES] 
 
 for (i in seq_along(names(report_mobs_list))) {
   rep_mobs_data = report_mobs_list[[i]]

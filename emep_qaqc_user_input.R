@@ -120,7 +120,8 @@ AUTO_NETWORK = 'aurn'          # the automatic monitoring network used for obser
 # - the csv data files must have columns: 'code', 'date' (which is hour starting) and poll names as in OBSERVED_POLLS
 #   below
 
-MOBS_STATION_REPORT = c('CHBO', 'ACTH', 'AGRN', 'KC1', 'BRS8', 'GLKP', 'MY1') # daily means of these will be plotted in the report
+MOBS_STATION_REPORT_TSERIES = c('CHBO', 'ACTH', 'AGRN', 'KC1', 'BRS8', 'GLKP', 'MY1') # daily means of these will be plotted in the report
+MOBS_STATION_REPORT_MAP = T #show selected MOBS station for the report on a map
 
 OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pollutants -if any other compounds added
 # their plotting params must be set in 
