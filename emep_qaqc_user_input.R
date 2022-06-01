@@ -109,8 +109,6 @@ COMP_MAP_VARS_REPORT = c('SURF_ug_NO2',
                          'SURF_ppb_O3',
                          'SURF_ug_PM25_rh50') #these will be plotted in the report 
 
-CMVR_INNER = T # if TRUE only the inner domain will be plotted in the report
-
 AUTO_NETWORK = 'aurn'          # the automatic monitoring network used for observation data
 # can currently be any or all of 'aurn', 'saqn', 'waqn', 'aqe', 'nian' 
 # ADDITIONALLY a path to an rds file containing info on other monitoring sites can be included

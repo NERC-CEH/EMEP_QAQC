@@ -482,15 +482,9 @@ if (PLOT_COMPARISON_MAPS == T) {
   
   #create plots for vars in COMP_MAP_VARS_REPORT
   report_map_vars = select_vars(vars = COMP_MAP_VARS_REPORT, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
-  if (CMVR_INNER == T) {
-    report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
-                                                              outer_test_fname = NA, outer_ref_fname = NA,
-                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
-  } else {
-    report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
+  report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
                                                               outer_test_fname = TEST_OUTER_FNAME, outer_ref_fname = REF_OUTER_FNAME,
                                                               inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
-  }
   null_vars_lgl = report_map_data %>% 
   map_lgl(is_null)
   report_plots_list = map(report_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
@@ -499,6 +493,21 @@ if (PLOT_COMPARISON_MAPS == T) {
   for (i in seq_along(report_plots_list)) {
     report_plots_list[[i]] = report_plots_list[[i]] +
       theme(plot.margin = margin(5.5,5.5,4*5.5,5.5, "pt"))
+  }
+  
+  if (all(!is.na(c(TEST_INNER_FNAME, REF_INNER_FNAME)))) {
+    report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
+                                                              outer_test_fname = NA, outer_ref_fname = NA,
+                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
+      null_vars_lgl = report_map_data %>% 
+      map_lgl(is_null)
+      report_plots_list_i = map(report_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
+        set_names(report_map_vars[!null_vars_lgl])
+      
+    for (i in seq_along(report_plots_list_i)) {
+      report_plots_list_i[[i]] = report_plots_list_i[[i]] +
+        theme(plot.margin = margin(5.5,5.5,4*5.5,5.5, "pt"))
+    }
   }
 
   
@@ -511,9 +520,17 @@ if (PLOT_COMPARISON_MAPS == T) {
 ```
 
 ```{r plot_maps, echo=FALSE, fig.height=11}
-  for (i in seq_along(report_plots_list)) {
-    print(report_plots_list[[i]])
+for (i in seq_along(report_plots_list)) {
+  print(report_plots_list[[i]])
+}
+
+if (all(!is.na(c(TEST_INNER_FNAME, REF_INNER_FNAME)))) {
+  for (i in seq_along(report_plots_list_i)) {
+    print(report_plots_list_i[[i]])
   }
+}
+
+
 ```
 
 Comparison maps are saved in **`r path(maps_pth_out, COMP_MAPS_FNAME)`** for the following variables:
