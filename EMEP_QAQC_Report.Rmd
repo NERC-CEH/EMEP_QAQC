@@ -691,7 +691,7 @@ if(COLLATE_MOBS == T) {
   
   site_plot_selected = site_plot +
     geom_sf(data = sites_geo_map_sub, aes(color = site_type_grp, shape = site_type_grp), stroke = 1) +
-    ggrepel::geom_label_repel(data = sites_geo_map, aes(label = code, color = site_type_grp, geometry = geometry),
+    ggrepel::geom_label_repel(data = sites_geo_map_sub, aes(label = code, color = site_type_grp, geometry = geometry),
                               stat = 'sf_coordinates', show.legend = F)
   site_plot_selected = theme_site_map(site_plot_selected) +
     ggtitle('Location of selected monitoring sites')
@@ -822,6 +822,7 @@ if (T %in% custom_lgl) {
   emep_slice = load_emep_data(str_replace(obs_fname, '_[^_]+$', '_fullrun.nc'),
                               emep_crs = EMEP_CRS, vars = mobs_polls[1])[[1]] %>%
     st_as_stars()
+  
   country_borders = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
     select(name_sort) %>% 
     st_transform(st_crs(emep_slice)) %>% 
@@ -849,7 +850,7 @@ if (T %in% custom_lgl) {
   
   site_plot_selected = site_plot +
     geom_sf(data = sites_geo_map_sub, aes(color = site_type_grp, shape = site_type_grp), stroke = 1) +
-    ggrepel::geom_label_repel(data = sites_geo_map, aes(label = code, color = site_type_grp, geometry = geometry),
+    ggrepel::geom_label_repel(data = sites_geo_map_sub, aes(label = code, color = site_type_grp, geometry = geometry),
                               stat = 'sf_coordinates', show.legend = F)
   site_plot_selected = theme_site_map(site_plot_selected) +
     ggtitle('Location of selected monitoring sites')
