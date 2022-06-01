@@ -691,7 +691,7 @@ if(COLLATE_MOBS == T) {
   
   site_plot_selected = site_plot +
     geom_sf(data = sites_geo_map_sub, aes(color = site_type_grp, shape = site_type_grp), stroke = 1) +
-    ggrepel::geom_label_repel(data = sites_geo_map, aes(label = code, color = site_type_grp, geometry = geometry),
+    ggrepel::geom_label_repel(data = sites_geo_map_sub, aes(label = code, color = site_type_grp, geometry = geometry),
                               stat = 'sf_coordinates', show.legend = F)
   site_plot_selected = theme_site_map(site_plot_selected) +
     ggtitle('Location of selected monitoring sites')
@@ -822,6 +822,7 @@ if (T %in% custom_lgl) {
   emep_slice = load_emep_data(str_replace(obs_fname, '_[^_]+$', '_fullrun.nc'),
                               emep_crs = EMEP_CRS, vars = mobs_polls[1])[[1]] %>%
     st_as_stars()
+  
   country_borders = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
     select(name_sort) %>% 
     st_transform(st_crs(emep_slice)) %>% 
@@ -840,6 +841,7 @@ if (T %in% custom_lgl) {
   site_plot_all = site_plot +
     geom_sf(data = st_transform(sites_geo, st_crs(country_borders)), aes(color = site_type_grp, shape = site_type_grp), stroke = 1)
   site_plot_all = theme_site_map(site_plot_all) +
+    theme(plot.margin = unit(c(1,1,1,1), 'cm')) +
     ggtitle('Location of monitoring sites')
   
   #select just sites that show time series in the report
@@ -849,9 +851,10 @@ if (T %in% custom_lgl) {
   
   site_plot_selected = site_plot +
     geom_sf(data = sites_geo_map_sub, aes(color = site_type_grp, shape = site_type_grp), stroke = 1) +
-    ggrepel::geom_label_repel(data = sites_geo_map, aes(label = code, color = site_type_grp, geometry = geometry),
+    ggrepel::geom_label_repel(data = sites_geo_map_sub, aes(label = code, color = site_type_grp, geometry = geometry),
                               stat = 'sf_coordinates', show.legend = F)
   site_plot_selected = theme_site_map(site_plot_selected) +
+    theme(plot.margin = unit(c(1,1,1,1), 'cm'))
     ggtitle('Location of selected monitoring sites')
 }
 
@@ -862,7 +865,7 @@ Hourly modelled concentrations have been compared with observations for the foll
 
 Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **`r path(data_pth_out, '00Sites_used.rds')`** and shown in the map below.
 
-`r site_plot_all`
+`r print(site_plot_all)`
 
 Model evaluation stats for all pollutants across all sites with data capture > 75% are shown in the table below and are saved in **`r path(tables_pth_out, MOBS_STATS_FNAME)`**. Additionally, scatter plots of modelled vs observed annual mean concentrations per pollutant and site type group are saved in **`r path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf')`**.
 
@@ -872,7 +875,7 @@ Model evaluation stats for all pollutants across all sites with data capture > 7
 
 ```{r, mobs_time_series, echo = F, fig.height=18}
 
-site_plot_selected
+print(site_plot_selected)
 
 #add station codes to the list items so that stations for the report can be selected from mobs_list
 if (is.null(names(mobs_list))) {
