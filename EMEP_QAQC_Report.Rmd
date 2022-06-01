@@ -271,14 +271,14 @@ if (any(str_detect(EMEP_domains, '^UK'))) {
     pivot_wider(names_from = pollutant, values_from = model) %>% 
     gt() %>% 
     tab_header(title = md('**UK Domain Emissions**')) %>% 
-    cols_label(Land = 'Country/Region)',
-               co = 'CO',
-               nh3 = html('nh<sup>3</sup>'),
-               voc = 'VOC',
-               nox = html('NO<sup>x</sup>'),
-               pm25 = html('PM<sup>2.5</sup>'),
-               pmco = html('PM<sup>Coarse</sup>'),
-               sox = html('SO<sup>x</sup>')) %>% 
+    # cols_label(Land = 'Country/Region)',
+    #            co = 'CO',
+    #            nh3 = html('nh<sup>3</sup>'),
+    #            voc = 'VOC',
+    #            nox = html('NO<sup>x</sup>'),
+    #            pm25 = html('PM<sup>2.5</sup>'),
+    #            pmco = html('PM<sup>Coarse</sup>'),
+    #            sox = html('SO<sup>x</sup>')) %>% 
     cols_align(align = 'right',
                columns = -Land) %>% 
     tab_options(data_row.padding = px(3),
