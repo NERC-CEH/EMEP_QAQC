@@ -752,11 +752,12 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     p4 = create_blank_plot()
   }
   
-  identical_data = map_dfr(p3_list, as_tibble) %>%
-    drop_na() %>%
-    nrow() == 0
+  #check if all abs_diff are NA (= test and ref values are identical)
+  identical_data = map(p3_list, as_tibble) %>%
+    map(drop_na) %>%
+    map_dbl(nrow)
   
-  if (identical_data) {
+  if (all(identical_data == 0)) {
     p3 = p3 +
       annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
       annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
