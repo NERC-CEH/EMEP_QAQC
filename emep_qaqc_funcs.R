@@ -530,7 +530,11 @@ compare_inv_mod_emissions = function(model_run_pth = TEST_INNER_FNAME,
     str_split('_') %>% 
     flatten_chr() %>% 
     str_subset('emiss') %>% 
+<<<<<<< HEAD
     str_extract('\\d+') %>% 
+=======
+    str_subset('\\d+') %>% 
+>>>>>>> d7454fe7830b49ca47ae541337ecc1e458339aa5
     as.integer()
   
   # - determine output filename based on whether it is an outer or inner domain file
