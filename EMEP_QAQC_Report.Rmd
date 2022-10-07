@@ -543,13 +543,7 @@ if(COLLATE_MOBS == T) {
   obs_fname = str_replace(TEST_OBS_FNAME, '_[^_]+$', '_hour.nc') #make sure hourly data are read
 
   #determine pollutants to be analysed
-  mobs_polls_list = map(VAR_PARAMS_LIST, 'obs') %>%
-    compact()
-
-  #create lookup table between pollutants and emep vars
-  mobs_polls = names(mobs_polls_list) %>%
-    set_names(flatten_chr(mobs_polls_list)) %>%
-    .[OBSERVED_POLLS] %>%
+  mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>% 
     na.omit()
 
   #extract year from emep file

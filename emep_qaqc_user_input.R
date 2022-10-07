@@ -125,6 +125,13 @@ OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pol
 # their plotting params must be set in 
 # OBS_VAR_PARAMS_LIST - see 'emep_vars_parameters0.R'
 
+OBSERVED_POLLS_EMEP_LINK = c(no = 'SURF_ug_NO',                     # links obs pollutants with their emep vars
+                             no2 = 'SURF_ug_NO2',
+                             o3 = 'SURF_ppb_O3',
+                             so2 = 'SURF_ug_SO2',
+                             pm10 = 'SURF_ug_PM10_rh50',
+                             pm2.5 = 'SURF_ug_PM25_rh50')
+
 PLOT_ALL_OBSERVED_POLLS = T    #should all pollutants in OBSERVED_POLLS be plotted? If FALSE, plot only those 
 #pollutants that are measured at the automatic monitoring site
 
