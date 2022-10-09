@@ -29,17 +29,21 @@ COMPARE_EMISSIONS = T
 ###                        - TEST_OBS is the run used for comparisons with observations
 
 ###set fnames to NA if not needed
-TEST_OUTER_FNAME = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/BASE/2018/EU/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_EU_2018_fullrun.nc'
-TEST_INNER_FNAME = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/BASE/2018/UK_3Km_LF2/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
-REF_OUTER_FNAME = '/home/mvi/EMEP_user_4.36/output/ROWE/BASE/2019/EU/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_ROWE_BASE_trend2019_emiss2019_EU_2019_fullrun.nc'
-REF_INNER_FNAME = '/home/mvi/EMEP_user_4.36/output/ROWE/BASE/2019/UK_3Km/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_ROWE_BASE_trend2019_emiss2019_UK_3Km_2019_fullrun.nc'
+TEST_OUTER_DIR = '/home/jansch/EMEP/EMEP_user_4.45/output/REGREEN/BASE/2018_nofire/EU'
+TEST_INNER_DIR = '/home/jansch/EMEP/EMEP_user_4.45/output/REGREEN/BASE/2018_nofire/REGREEN'
+REF_OUTER_DIR = '/home/mvi/EMEP_user_4.36/output/REGREEN/BASE/2018/EU'
+REF_INNER_DIR = '/home/mvi/EMEP_user_4.36/output/REGREEN/BASE/2018/REGREEN'
 
-EMEP_BUDGET_FNAME = c(TEST_INNER_FNAME, REF_INNER_FNAME)
+#TEST_OUTER_FNAME = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/BASE/2018/EU/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_EU_2018_fullrun.nc'
+#TEST_INNER_FNAME = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/BASE/2018/UK_3Km_LF2/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
+#REF_OUTER_FNAME = '/home/mvi/EMEP_user_4.36/output/ROWE/BASE/2019/EU/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_ROWE_BASE_trend2019_emiss2019_EU_2019_fullrun.nc'
+#REF_INNER_FNAME = '/home/mvi/EMEP_user_4.36/output/ROWE/BASE/2019/UK_3Km/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_ROWE_BASE_trend2019_emiss2019_UK_3Km_2019_fullrun.nc'
+
+EMEP_BUDGET_FNAME = c(str_subset(dir_ls(TEST_INNER_DIR), 'fullrun'), #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
+                      str_subset(dir_ls(REF_INNER_DIR), 'fullrun'))  #the test fname must be the first element of the vector
 
 BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
 WEBDABEMEP_PTH = 'WebdabEMEP_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
-
-TEST_OBS_FNAME = TEST_INNER_FNAME #EMEP file used for comparison with hourly observations
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
 
@@ -60,10 +64,10 @@ EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 
 ### please do not change any other paths!
 
-QAQC_DIR = dir_create(path_dir(TEST_INNER_FNAME))
+QAQC_DIR = TEST_INNER_DIR
 
-if (QAQC_DIR != path_dir(TEST_INNER_FNAME)) { 
-  qaqc_pth_out = QAQC_DIR
+if (QAQC_DIR != TEST_INNER_DIR) { 
+  qaqc_pth_out = dir_create(path(QAQC_DIR))
 } else {
   qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
 }
@@ -124,6 +128,12 @@ MOBS_STATION_REPORT_MAP = T #show selected MOBS station for the report on a map
 OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pollutants -if any other compounds added
 # their plotting params must be set in 
 # OBS_VAR_PARAMS_LIST - see 'emep_vars_parameters0.R'
+
+#non-auto species
+NONAUTO_SPECIES = c('Ca_p', 'Cl_p', 'HCl_g', 'HNO3_g', 'HONO_g', 'Mg_p', 'Na_p',
+                   'NH3_alpha', 'NH3_delta', 'NH3_diffusion_tube', 'NH4_p', 'NO2_p',
+                   'NO3_p', 'SO2_g', 'SO4_p', 'NH4_precip', 'NO3_precip', 'nmSO4_precip', 'rainfall'
+                   )
 
 OBSERVED_POLLS_EMEP_LINK = c(no = 'SURF_ug_NO',                     # links obs pollutants with their emep vars
                              no2 = 'SURF_ug_NO2',
