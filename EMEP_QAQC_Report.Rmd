@@ -51,31 +51,32 @@ future::plan(multicore)
 
 \newpage
 ```{r run info, echo = F}
-test_run_info = na.omit(c(TEST_INNER_FNAME, TEST_OUTER_FNAME)) %>% 
-  path_dir() %>% 
+test_run_info = na.omit(c(TEST_INNER_DIR, TEST_OUTER_DIR)) %>% 
   path_common()
 
-ref_run_info = na.omit(c(REF_INNER_FNAME, REF_OUTER_FNAME)) %>% 
-  path_dir() %>% 
+ref_run_info = na.omit(c(REF_INNER_DIR, REF_OUTER_DIR)) %>% 
   path_common()
 
-inner_domain = extract_domain_from_fpath(TEST_INNER_FNAME)
-outer_domain = extract_domain_from_fpath(TEST_OUTER_FNAME)
+inner_domain = path_split(TEST_INNER_DIR) %>% 
+  map_chr(last)
+outer_domain = path_split(TEST_OUTER_DIR) %>% 
+  map_chr(last)
+
 EMEP_domains = c(outer_domain, inner_domain)
 ```
 
 ## Run Info
 
-Test path: `r test_run_info`
+Test Directory: `r test_run_info`
 \
-Ref path: `r ref_run_info`
+Ref Directory: `r ref_run_info`
 
 ## File Size
-### `r extract_domain_from_fpath(TEST_OUTER_FNAME)` Domain
+### `r outer_domain` Domain
 
 ```{r outer_file_size, echo = F}
 
-fsize_df = compare_file_size(TEST_OUTER_FNAME, REF_OUTER_FNAME) %>%
+fsize_df = compare_file_size(TEST_OUTER_DIR, REF_OUTER_DIR) %>%
   format_file_size_tbl() %>% 
   tab_options(data_row.padding = px(3),
               #table.font.size = pct(95),
@@ -83,11 +84,11 @@ fsize_df = compare_file_size(TEST_OUTER_FNAME, REF_OUTER_FNAME) %>%
 fsize_df
 ```
 
-### `r extract_domain_from_fpath(TEST_INNER_FNAME)` Domain
+### `r inner_domain` Domain
 
 ```{r inner_file_size, echo = F}
 
-fsize_df = compare_file_size(TEST_INNER_FNAME, REF_INNER_FNAME) %>%
+fsize_df = compare_file_size(TEST_INNER_DIR, REF_INNER_DIR) %>%
   format_file_size_tbl() %>% 
   tab_options(data_row.padding = px(3),
               #table.font.size = pct(95),
@@ -100,15 +101,15 @@ fsize_df
 ```{r emission_check, echo = F}
 	
 ###MassBudgetSummary.txt data
-MBS_list = map2(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), 
-                c(REF_OUTER_FNAME, REF_INNER_FNAME), 
-                compare_run_emissions, save_file = F, mbs_table_fname = MBS_TABLE_FNAME)
+MBS_list = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR), 
+                c(REF_OUTER_DIR, REF_INNER_DIR), 
+                compare_run_emissions, save_file = T, mbs_table_fname = MBS_TABLE_FNAME)
 
-EMEP_domains = c(outer_domain, inner_domain)
-MBS_plot_captions = c(str_c('Test: ', str_replace(path_file(TEST_OUTER_FNAME), '_[^_]+$', ''),'\n',
-                            'Ref: ', str_replace(path_file(REF_OUTER_FNAME), '_[^_]+$', '')),
-                      str_c('Test: ', str_replace(path_file(TEST_INNER_FNAME), '_[^_]+$', ''),'\n',
-                            'Ref: ', str_replace(path_file(REF_INNER_FNAME), '_[^_]+$', '')))
+
+MBS_plot_captions = c(str_c('Test: ', path(TEST_OUTER_DIR, 'MassBudgetSummary.txt'),'\n',
+                            'Ref: ', path(REF_OUTER_DIR, 'MassBudgetSummary.txt')),
+                      str_c('Test: ', path(TEST_INNER_DIR, 'MassBudgetSummary.txt'),'\n',
+                            'Ref: ', path(REF_INNER_DIR, 'MassBudgetSummary.txt')))
 
 MBS_plots = map(MBS_list, plot_MBS_diff, threshold = EMISS_DIFF_THRESHOLD) %>%
   map2(MBS_plot_captions, ~.x + labs(caption = .y) + theme(plot.caption = element_text(size = 6, face = 'italic') ))
@@ -152,16 +153,17 @@ if (!MBS_lgl[2]) {
 
 ###RunLog.out emissions
 
-emiss_list = map(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), compare_inv_mod_emissions, webdabEMEP_pth = WEBDABEMEP_PTH)
+emiss_list = map(c(TEST_OUTER_DIR, TEST_INNER_DIR), compare_inv_mod_emissions, webdabEMEP_pth = WEBDABEMEP_PTH)
 
 #determine the number of plots per page so that they fit on A4 paper
 n_land = map_int(emiss_list, ~n_distinct(.x$Land))
-ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L, .x >= 11 && .x <= 20 ~ 2L, .x > 20 ~ 1L))
+ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L,
+                                 .x >= 11 && .x <= 20 ~ 2L,
+                                 .x > 20 ~ 1L))
 
 emiss_plot_list = map(emiss_list, plot_emiss_diff, threshold = EMISS_DIFF_THRESHOLD)
 
-page_titles = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), strip_time_res) %>%
-  str_c('\n\n')
+page_titles = str_c(c(TEST_OUTER_DIR, TEST_INNER_DIR), '\n\n')
 
 emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
                             marrangeGrob, ncol = 1)
@@ -172,8 +174,8 @@ walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = '
 #for report:
 
 #get paths with mod_inv comp tables
-emiss_list_tbl_pths = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), ~paste0(extract_domain_from_fpath(.x), '_', INV_MOD_EMISS_TABLE_FNAME))
-MBS_tbl_pths = map_chr(c(TEST_OUTER_FNAME, TEST_INNER_FNAME), ~paste0(extract_domain_from_fpath(.x), '_', MBS_TABLE_FNAME))
+emiss_list_tbl_pths = str_c(EMEP_domains, INV_MOD_EMISS_TABLE_FNAME, sep = '_')
+MBS_tbl_pths = str_c(EMEP_domains, MBS_TABLE_FNAME, sep = '_')
 
 #filter only those over threshold
 emiss_sublist = emiss_list %>%
@@ -225,7 +227,7 @@ if (!emiss_lgl[2]) {
 
 ```
 
-### `r extract_domain_from_fpath(TEST_OUTER_FNAME)` Domain
+### `r outer_domain` Domain
 
 Differences in emissions between the test run and EMEP inventory are saved in **`r emiss_list_tbl_pths[1]`** and plotted in **`r out_pths[1]`**. Similarly, differences in emissions between the test and reference runs are saved in **`r MBS_tbl_pths[1]`**, and plotted in **`r path(plots_pth_out, str_c(EMEP_domains, '_', MBS_PLOT_FNAME))[1]`**, respectively.
 
@@ -257,7 +259,7 @@ Emissions of the following species in the test run differ by more than `r EMISS_
 `r if(!MBS_lgl[1]) MBS_table_O`
 
 
-### `r extract_domain_from_fpath(TEST_INNER_FNAME)` Domain
+### `r inner_domain` Domain
 
 ```{r, UK_emission_tbl}
 #
@@ -441,19 +443,25 @@ if (PLOT_COMPARISON_MAPS == T) {
   #collate emep_vars
   comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
   
-  comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
-                                                              outer_test_fname = TEST_OUTER_FNAME, outer_ref_fname = REF_OUTER_FNAME,
-                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
+  
+  comp_map_data = future_map(comp_map_vars[1], ~calculate_emep_diff(var = .x,
+                                                                    run_labels = RUN_LABELS,
+                                                                    outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
+                                                                    outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
+                                                                    inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
+                                                                    inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
+                                                                    emep_crs = EMEP_CRS))
+  
   null_vars_lgl = comp_map_data %>% 
     map_lgl(is_null)
   null_vars = comp_map_vars[null_vars_lgl]
   comp_plots_list = map(comp_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
     set_names(comp_map_vars[!null_vars_lgl])
 
-  page_titles = format_maps_page_title(outer_test_pth = TEST_OUTER_FNAME,
-                                       outer_ref_pth = REF_OUTER_FNAME,
-                                       inner_test_pth = TEST_INNER_FNAME,
-                                       inner_ref_pth = REF_INNER_FNAME,
+  page_titles = format_maps_page_title(outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
+                                       outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
+                                       inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
+                                       inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
                                        run_labels = str_c(RUN_LABELS, ' run')) %>%
     rep(length(comp_plots_list))
 
@@ -482,9 +490,14 @@ if (PLOT_COMPARISON_MAPS == T) {
   
   #create plots for vars in COMP_MAP_VARS_REPORT
   report_map_vars = select_vars(vars = COMP_MAP_VARS_REPORT, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
-  report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
-                                                              outer_test_fname = TEST_OUTER_FNAME, outer_ref_fname = REF_OUTER_FNAME,
-                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
+  report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x,
+                                                                     run_labels = RUN_LABELS,
+                                                                     outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
+                                                                     outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
+                                                                     inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
+                                                                     inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
+                                                                     emep_crs = EMEP_CRS))
+  
   null_vars_lgl = report_map_data %>% 
   map_lgl(is_null)
   report_plots_list = map(report_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
@@ -495,10 +508,15 @@ if (PLOT_COMPARISON_MAPS == T) {
       theme(plot.margin = margin(5.5,5.5,4*5.5,5.5, "pt"))
   }
   
-  if (all(!is.na(c(TEST_INNER_FNAME, REF_INNER_FNAME)))) {
-    report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x, run_labels = RUN_LABELS,
-                                                              outer_test_fname = NA, outer_ref_fname = NA,
-                                                              inner_test_fname = TEST_INNER_FNAME, inner_ref_fname = REF_INNER_FNAME, emep_crs = EMEP_CRS))
+  if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR)))) {
+    report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x,
+                                                                       run_labels = RUN_LABELS,
+                                                                       outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
+                                                                       outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
+                                                                       inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
+                                                                       inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
+                                                                       emep_crs = EMEP_CRS))
+    
       null_vars_lgl = report_map_data %>% 
       map_lgl(is_null)
       report_plots_list_i = map(report_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
@@ -524,7 +542,7 @@ for (i in seq_along(report_plots_list)) {
   print(report_plots_list[[i]])
 }
 
-if (all(!is.na(c(TEST_INNER_FNAME, REF_INNER_FNAME)))) {
+if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR)))) {
   for (i in seq_along(report_plots_list_i)) {
     print(report_plots_list_i[[i]])
   }

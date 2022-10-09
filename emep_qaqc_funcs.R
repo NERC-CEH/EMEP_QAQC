@@ -118,7 +118,7 @@ get_auto_data = function(site, network, pollutant, start_year, end_year, to_narr
   vs
 }
 
-compare_file_size = function(test_pth, ref_pth) {
+compare_file_size = function(test_dir, ref_dir) {
   
   ###tests if domains of test and ref match - temporarily disabled because of Tomas's uEMEP directory
   # domain = map_chr(c(test_pth, ref_pth), extract_domain_from_fpath)
@@ -126,7 +126,7 @@ compare_file_size = function(test_pth, ref_pth) {
   #   stop('Comparing EMEP outputs in two different domains')
   # }
   
-  d_content = map_dfr(c(test = test_pth, ref = ref_pth), ~dir_info(path_dir(.x)), .id = 'run') %>% 
+  d_content = map_dfr(c(test = test_dir, ref = ref_dir), dir_info, .id = 'run') %>% 
     select(run, path, size)
   
   d_content2 = d_content %>% 
@@ -497,14 +497,13 @@ read_RunLog_emissions = function(RunLog_pth) {
   
 }
 
-compare_run_emissions = function(test_pth, ref_pth, save_file = T, mbs_table_fname = NA) {
-  # test and ref paths are absolute paths of the emep runs
-  #  - they can be either the output nc file or the MassBudgetSummary.txt file
-  
-  MBS_data = c(test_pth,ref_pth) %>% 
-    path_dir() %>% 
+compare_run_emissions = function(test_dir, ref_dir, save_file = T, mbs_table_fname = NA) {
+
+  MBS_files = c(test_dir,ref_dir) %>% 
     path('MassBudgetSummary.txt') %>% 
-    set_names(c('test', 'ref')) %>% 
+    set_names(c('test', 'ref'))
+  
+  MBS_data = MBS_files %>% 
     map_dfr(read_table, skip = 1, col_names = T, .id = 'run') %>% 
     select(run, species = Spec, emission = emis) %>% 
     pivot_wider(id_cols = species, names_from = run, values_from = emission) %>% 
@@ -513,31 +512,31 @@ compare_run_emissions = function(test_pth, ref_pth, save_file = T, mbs_table_fna
   if (save_file == T) {
     # - determine output filename based on whether it is an outer or inner domain file
     stopifnot('output file name must be provided' = !is.na(mbs_table_fname))
-    out_fname = paste0(extract_domain_from_fpath(test_pth), '_', mbs_table_fname)
-    write_lines(paste0('# Test file: ', test_pth), file = path(tables_pth_out, out_fname))
-    write_lines(paste0('# Ref file: ', ref_pth), path(tables_pth_out, out_fname), append = T)
-    write_lines('# ', path(tables_pth_out, out_fname), append = T)
+    out_fname = paste0(map_chr(path_split(test_dir), last), '_', mbs_table_fname)
+    write_lines(paste0('# Test file: ', MBS_files[1]), file = path(tables_pth_out, out_fname))
+    write_lines(paste0('# Ref file: ', MBS_files[2]), path(tables_pth_out, out_fname), append = T)
+    write_lines(paste0('#', str_c(rep('-', 50), collapse = '-')), path(tables_pth_out, out_fname), append = T)
     write_csv(MBS_data, path(tables_pth_out, out_fname), na = '', col_names = T, append = T)
   }
   MBS_data
 }
 
-compare_inv_mod_emissions = function(model_run_pth = TEST_INNER_FNAME,
+compare_inv_mod_emissions = function(model_run_dir,
                                      webdabEMEP_pth = 'webdabEMEPNationalEmissions2000-2019.txt',
                                      save_file = T) {
   
-  mod_year = path_file(model_run_pth) %>% 
-    str_split('_') %>% 
-    flatten_chr() %>% 
-    str_subset('emiss') %>% 
-    str_extract('\\d+') %>% 
-    as.integer()
+  runlog_file = read_lines(path(model_run_dir, 'RunLog.out'))
+  
+  mod_year = runlog_file[str_detect(runlog_file, 'emissions by countries')] %>% 
+    str_extract('\\d{4}') %>%
+    as.integer() %>% 
+    unique()
+  stopifnot('Could not determine the model emission year - check RunLog.out' = length(mod_year) == 1)
   
   # - determine output filename based on whether it is an outer or inner domain file
-  out_fname = paste0(extract_domain_from_fpath(model_run_pth), '_', INV_MOD_EMISS_TABLE_FNAME)
+  out_fname = paste0(map_chr(path_split(model_run_dir), last), '_', INV_MOD_EMISS_TABLE_FNAME)
   
-  RL_emiss = c(model_run_pth) %>% 
-    path_dir() %>% 
+  runlog_emiss = model_run_dir %>% 
     path('RunLog.out') %>% 
     read_RunLog_emissions() %>% 
     mutate(type = 'model')
@@ -551,7 +550,7 @@ compare_inv_mod_emissions = function(model_run_pth = TEST_INNER_FNAME,
     rename(co = CO, nh3 = NH3, voc = NMVOC, nox = NOx, pm25 = PM2.5, pmco = PMcoarse, sox = SOx) %>% 
     mutate(type = 'inventory')
   
-  merged = bind_rows(inventory, RL_emiss) %>% 
+  merged = bind_rows(inventory, runlog_emiss) %>% 
     group_by(Land) %>% 
     filter(n() > 1) %>% 
     ungroup() %>% 
@@ -562,8 +561,8 @@ compare_inv_mod_emissions = function(model_run_pth = TEST_INNER_FNAME,
     arrange(Land)
   
   if (save_file == T) {
-    write_lines(paste0('# EMEP file: ', model_run_pth), file = path(tables_pth_out, out_fname))
-    write_lines('# ', path(tables_pth_out, out_fname), append = T)
+    write_lines(paste0('# EMEP file: ', path(model_run_dir, 'RunLog.out')), file = path(tables_pth_out, out_fname))
+    write_lines(paste0('#', str_c(rep('-', 50), collapse = '-')), path(tables_pth_out, out_fname), append = T)
     write_csv(merged, path(tables_pth_out, out_fname), na = '', col_names = T, append = T)
   }
   
@@ -1432,6 +1431,18 @@ extract_domain_from_fpath = function(fpath) {
     flatten_chr()
   domain = v[length(v) - 1]
   domain
+}
+
+select_file_from_dir = function(EMEP_dir, f_name = 'fullrun') {
+  #safely extract file name from directory (for comp maps calculations)
+  #returns NA if EMEP_dir is NA without crashing
+  if(is.na(EMEP_dir)) {
+    out = NA
+  } else {
+    out = dir_ls(EMEP_dir) %>% 
+      str_subset(f_name)
+  }
+  out
 }
 
 strip_time_res = function(emep_pth, return_full_pth = F) {
