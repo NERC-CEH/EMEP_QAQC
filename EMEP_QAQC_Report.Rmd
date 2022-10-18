@@ -1,5 +1,5 @@
 ---
-title: "EMEP QAQC Report - DUKEMS"
+title: "EMEP QAQC Report"
 output:
   rmdformats::readthedown:
     toc_depth: 3
@@ -458,10 +458,10 @@ if (PLOT_COMPARISON_MAPS == T) {
   comp_plots_list = map(comp_map_data[!null_vars_lgl], plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
     set_names(comp_map_vars[!null_vars_lgl])
 
-  page_titles = format_maps_page_title(outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
-                                       outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
-                                       inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
-                                       inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
+  page_titles = format_maps_page_title(outer_test_pth = select_file_from_dir(TEST_OUTER_DIR),
+                                       outer_ref_pth = select_file_from_dir(REF_OUTER_DIR),
+                                       inner_test_pth = select_file_from_dir(TEST_INNER_DIR),
+                                       inner_ref_pth = select_file_from_dir(REF_INNER_DIR),
                                        run_labels = str_c(RUN_LABELS, ' run')) %>%
     rep(length(comp_plots_list))
 
