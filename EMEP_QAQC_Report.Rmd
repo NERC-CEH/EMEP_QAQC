@@ -75,25 +75,32 @@ Ref Directory: `r ref_run_info`
 ### `r outer_domain` Domain
 
 ```{r outer_file_size, echo = F}
-
-fsize_df = compare_file_size(TEST_OUTER_DIR, REF_OUTER_DIR) %>%
-  format_file_size_tbl() %>% 
-  tab_options(data_row.padding = px(3),
-              #table.font.size = pct(95),
-              table.align='left')
-fsize_df
+if (is.na(TEST_OUTER_DIR)) {
+  print('NA')
+} else {
+  fsize_df = compare_file_size(TEST_OUTER_DIR, REF_OUTER_DIR) %>%
+    format_file_size_tbl() %>% 
+    tab_options(data_row.padding = px(3),
+                #table.font.size = pct(95),
+                table.align='left')
+  fsize_df 
+}
 ```
 
 ### `r inner_domain` Domain
 
 ```{r inner_file_size, echo = F}
-
-fsize_df = compare_file_size(TEST_INNER_DIR, REF_INNER_DIR) %>%
+if(is.na(TEST_INNER_DIR)) {
+  print('NA')
+} else {
+  fsize_df = compare_file_size(TEST_INNER_DIR, REF_INNER_DIR) %>%
   format_file_size_tbl() %>% 
   tab_options(data_row.padding = px(3),
               #table.font.size = pct(95),
               table.align='left')
-fsize_df
+  fsize_df
+}
+
 ```
 
 ## Emissions

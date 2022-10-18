@@ -61,7 +61,7 @@ EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 
 QAQC_DIR = TEST_INNER_DIR
 
-if (QAQC_DIR != TEST_INNER_DIR) { 
+if (is.na(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
   qaqc_pth_out = dir_create(path(QAQC_DIR))
 } else {
   qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
