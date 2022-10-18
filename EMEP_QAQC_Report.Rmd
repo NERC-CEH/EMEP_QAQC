@@ -444,7 +444,7 @@ if (PLOT_COMPARISON_MAPS == T) {
   comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
   
   
-  comp_map_data = future_map(comp_map_vars[1], ~calculate_emep_diff(var = .x,
+  comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x,
                                                                     run_labels = RUN_LABELS,
                                                                     outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
                                                                     outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
@@ -507,7 +507,7 @@ if (PLOT_COMPARISON_MAPS == T) {
     report_plots_list[[i]] = report_plots_list[[i]] +
       theme(plot.margin = margin(5.5,5.5,4*5.5,5.5, "pt"))
   }
-  
+  #plot inner domain only if inner domain files are supplied
   if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR)))) {
     report_map_data = future_map(report_map_vars, ~calculate_emep_diff(var = .x,
                                                                        run_labels = RUN_LABELS,
@@ -557,22 +557,22 @@ Comparison maps are saved in **`r path(maps_pth_out, COMP_MAPS_FNAME)`** for the
 ## Observations
 ```{r mobs, include=FALSE}
 if(COLLATE_MOBS == T) {
-
-  obs_fname = str_replace(TEST_OBS_FNAME, '_[^_]+$', '_hour.nc') #make sure hourly data are read
+  
+  #choose the inner domain run unless that's NA
+  obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
+  
+  #get meta from emep run (handles both lonlat and PS)
+  nc = nc_open(str_subset(dir_ls(obs_dir), 'fullrun'))
+  mod_year = nc.get.time.series(nc) %>% 
+    as_datetime() %>% 
+    year()
+  nc_lon = ncvar_get(nc, "lon")
+  nc_lat = ncvar_get(nc, "lat")
+  nc_close(nc)
 
   #determine pollutants to be analysed
   mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>% 
     na.omit()
-
-  #extract year from emep file
-  mod_dates = get_emep_floordate(obs_fname)
-  mod_year = unique(year(mod_dates$date))
-
-  #extract latitude and longitude values from emep file
-  nc = nc_open(obs_fname)
-  nc_lon = ncvar_get(nc, "lon")
-  nc_lat = ncvar_get(nc, "lat")
-  nc_close(nc)
 
   #determine network of automatic sites or read file with meta of custom measurements
   if (length(AUTO_NETWORK[!file_exists(AUTO_NETWORK)]) > 0) {
@@ -591,7 +591,7 @@ if(COLLATE_MOBS == T) {
 
   #get a 2D slice of the EMEP output to check if all sites are in the modelled domain
   #loads quicker to check on the fullrun data
-  emep_slice = load_emep_data(str_replace(obs_fname, '_[^_]+$', '_fullrun.nc'),
+  emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
                               emep_crs = EMEP_CRS, vars = mobs_polls[1])[[1]] %>%
     st_as_stars()
 
@@ -606,7 +606,7 @@ if(COLLATE_MOBS == T) {
   #get the 'x' and 'y' indexes for extracting data using ncdf4 functions
   emep_indexes = future_pmap_dfr(list(longitude = sites_geo$longitude,
                                       latitude = sites_geo$latitude),
-                                 get_emep_indexes, TEST_INNER_FNAME)
+                                 get_emep_indexes, str_subset(dir_ls(obs_dir), 'fullrun'))
 
   sites_geo = sites_geo %>%
     mutate(i = emep_indexes$row,
@@ -615,10 +615,6 @@ if(COLLATE_MOBS == T) {
 
   #write meta data to files - rds for further use and csv for easier human check
   write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
-  # sites_geo %>%
-  #   st_drop_geometry() %>%
-  #   unnest(poll_info) %>%
-  #   write_csv(path(data_pth_out, '00Sites_used.csv'), na ='')
 
   #create a dataframe for site-pollutant iteration (enables parallel processing using furrr)
   iter_df = cross_df(list(code = sites_geo$code, poll = names(mobs_polls))) %>%
