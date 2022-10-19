@@ -452,7 +452,7 @@ if (PLOT_COMPARISON_MAPS == T) {
   comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
   
   
-  comp_map_data = future_map(comp_map_vars[8], ~calculate_emep_diff(var = .x,
+  comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x,
                                                                     run_labels = RUN_LABELS,
                                                                     outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
                                                                     outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
