@@ -34,8 +34,8 @@ TEST_INNER_DIR = NA
 REF_OUTER_DIR = NA
 REF_INNER_DIR = NA
 
-EMEP_BUDGET_FNAME = c(str_subset(dir_ls(TEST_INNER_DIR), 'fullrun'), #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
-                      str_subset(dir_ls(REF_INNER_DIR), 'fullrun'))  #the test fname must be the first element of the vector
+EMEP_BUDGET_DIR = c(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
+                                                   #the test fname must be the first element of the vector
 
 BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
 WEBDABEMEP_PTH = 'WebdabEMEP_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
