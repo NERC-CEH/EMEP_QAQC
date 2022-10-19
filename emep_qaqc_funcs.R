@@ -724,8 +724,24 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
            fill = fill_labs[3])
     
     p3 = theme_emep_diffmap(p3)
+    
+    #check if all abs_diff are NA (= test and ref values are identical)
+    identical_data = map(p3_list, as_tibble) %>%
+      map(drop_na) %>%
+      map_dbl(nrow)
+    
+    if (all(identical_data == 0)) {
+      p3 = p3 +
+        annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
+        annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+        theme(legend.position = 'none')
+    }
+    
   } else {
-    p3 = create_blank_plot()
+    p3 = create_blank_plot() +
+      annotation_custom(grid::roundrectGrob(width = 0.9, height = 0.08)) +
+      annotation_custom(grid::textGrob('Absolute difference not calculable'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+      theme(legend.position = 'none')
   }
   
   p4_list = map(diff_list, 4) %>% 
@@ -748,23 +764,22 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
            fill = fill_labs[4])
     
     p4 = theme_emep_diffmap(p4)
+    
+    #check if all abs_diff are NA (= test and ref values are identical)
+    identical_data = map(p4_list, as_tibble) %>%
+      map(drop_na) %>%
+      map_dbl(nrow)
+    
+    if (all(identical_data == 0)) {
+      p4 = p4 +
+        annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
+        annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+        theme(legend.position = 'none')
+    }
   } else {
-    p4 = create_blank_plot()
-  }
-  
-  #check if all abs_diff are NA (= test and ref values are identical)
-  identical_data = map(p3_list, as_tibble) %>%
-    map(drop_na) %>%
-    map_dbl(nrow)
-  
-  if (all(identical_data == 0)) {
-    p3 = p3 +
-      annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
-      annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
-      theme(legend.position = 'none')
-    p4 = p4 +
-      annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
-      annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+    p4 = create_blank_plot() +
+      annotation_custom(grid::roundrectGrob(width = 0.9, height = 0.08)) +
+      annotation_custom(grid::textGrob('Relative difference not calculable'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
       theme(legend.position = 'none')
   }
   

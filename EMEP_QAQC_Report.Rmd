@@ -331,6 +331,7 @@ Emissions of the following species in the test run differ by more than `r EMISS_
 
 ```{r budget, include=FALSE}
 
+EMEP_BUDGET_FNAME = map_chr(EMEP_BUDGET_DIR, ~dir_ls(.) %>% str_subset('fullrun'))
 emep_budget = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') %>% 
   load_emep_data(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, vars = .)
 
@@ -451,7 +452,7 @@ if (PLOT_COMPARISON_MAPS == T) {
   comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
   
   
-  comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x,
+  comp_map_data = future_map(comp_map_vars[8], ~calculate_emep_diff(var = .x,
                                                                     run_labels = RUN_LABELS,
                                                                     outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
                                                                     outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
@@ -633,7 +634,7 @@ if(COLLATE_MOBS == T) {
                                 j_index = iter_df$j,
                                 network = iter_df$network,
                                 pollutant = iter_df$poll),
-                           safely(collate_obs_mod_nc), nc_pth = obs_fname,
+                           safely(collate_obs_mod_nc), nc_pth = str_subset(dir_ls(obs_dir), '(H|h)our'),
                            poll_name_lookup = mobs_polls,
                            .options = furrr_options(seed = T)) %>%
     transpose()
@@ -715,16 +716,8 @@ if(COLLATE_MOBS == T) {
 
 if (PLOT_MOBS_PDF == T) {
   if (COLLATE_MOBS != T) {
-
-    #recreate lookup table between pollutants and emep vars
-    obs_fname = str_replace(TEST_OBS_FNAME, '_[^_]+$', '_hour.nc')
-    mobs_polls_list = map(VAR_PARAMS_LIST, 'obs') %>%
-      compact()
-    mobs_polls = names(mobs_polls_list) %>%
-      set_names(flatten_chr(mobs_polls_list)) %>%
-      .[OBSERVED_POLLS] %>%
+    mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>% 
       na.omit()
-    mobs_polls = mobs_polls[mobs_polls %in% extract_nc_vars(obs_fname)]
 
     #read saved meta data
     sites_geo = read_rds(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'))
@@ -834,7 +827,7 @@ if (T %in% custom_lgl) {
   
   #for report:
   ##map of used monitoring stations
-  emep_slice = load_emep_data(str_replace(obs_fname, '_[^_]+$', '_fullrun.nc'),
+  emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
                               emep_crs = EMEP_CRS, vars = mobs_polls[1])[[1]] %>%
     st_as_stars()
   
