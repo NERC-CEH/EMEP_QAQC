@@ -70,6 +70,8 @@ EMEP_domains = c(outer_domain, inner_domain)
 Test Directory: `r test_run_info`
 \
 Ref Directory: `r ref_run_info`
+  
+
 
 ## File Size
 ### `r outer_domain` Domain
@@ -749,7 +751,7 @@ if (PLOT_MOBS_PDF == T) {
   mobs_plots = mobs_plots[order(match(mobs_plots, mobs_polls))]
 
   #get EMEP run fname for title on pdf plots
-  run_info = format_maps_page_title(inner_test_pth = obs_fname, run_labels = 'EMEP run')
+  run_info = format_maps_page_title(inner_test_pth = select_file_from_dir(obs_dir), run_labels = 'EMEP run')
 
   page_titles = rep(run_info, length(mobs_plots) %/% PPP + 1)
   export = marrangeGrob(grobs = mobs_plots, nrow = PPP , ncol = 1, top = substitute(page_titles[g]))
