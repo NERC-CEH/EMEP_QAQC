@@ -521,10 +521,11 @@ compare_run_emissions = function(test_dir, ref_dir, save_file = T, mbs_table_fna
   MBS_data
 }
 
-compare_inv_mod_emissions = function(model_run_dir,
-                                     webdabEMEP_pth = 'webdabEMEPNationalEmissions2000-2019.txt',
-                                     save_file = T) {
+compare_inv_mod_emissions = function(model_run_dir, emiss_inv_pth, save_file = T) {
   
+  if (!file_exists(emiss_inv_pth)) {
+    stop('Emission Inventory filepath is not valid.')
+  }
   runlog_file = read_lines(path(model_run_dir, 'RunLog.out'))
   
   mod_year = runlog_file[str_detect(runlog_file, 'emissions by countries')] %>% 
@@ -541,7 +542,7 @@ compare_inv_mod_emissions = function(model_run_dir,
     read_RunLog_emissions() %>% 
     mutate(type = 'model')
   
-  inventory = read_delim(webdabEMEP_pth, comment = '#', delim = ';',
+  inventory = read_delim(emiss_inv_pth, comment = '#', delim = ';',
                          col_names = c('Land', 'year', 'sector', 'pollutant', 'unit', 'value'),
                          col_types = 'cicccd') %>% 
     filter(year == mod_year) %>% 
@@ -1650,4 +1651,24 @@ format_maps_page_title = function(outer_test_pth = NA, outer_ref_pth = NA,
                      '\n') 
   }
   pg_title
+}
+
+format_inv_table = function(inv_dframe) {
+  em_table = inv_dframe %>%
+    select(Land, pollutant, rel_diff) %>%
+    mutate(pollutant = gt_var_labeller[pollutant]) %>% 
+    gt() %>% 
+    cols_label(Land = 'Country/Region',
+               pollutant = 'Species',
+               rel_diff = 'Difference (%)') %>% 
+    cols_align(align = 'right',
+               columns = rel_diff) %>% 
+    fmt_number(columns = rel_diff, decimals = 1) %>% 
+    tab_options(data_row.padding = px(3),
+                table.align='left') %>% 
+    text_transform(location = cells_body(columns = pollutant),
+                   fn = function(x) {
+                     str_replace_all(x, '\\[', "<sub>") %>% 
+                       str_replace_all('\\]', "</sub>")
+                   })
 }
