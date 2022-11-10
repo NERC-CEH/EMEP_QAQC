@@ -125,7 +125,7 @@ compare_file_size = function(test_dir, ref_dir) {
   # if(length(unique(domain)) != 1) {
   #   stop('Comparing EMEP outputs in two different domains')
   # }
-  
+  if (any(is.na(c(test_dir, ref_dir)))) return(NULL)
   d_content = map_dfr(c(test = test_dir, ref = ref_dir), dir_info, .id = 'run') %>% 
     select(run, path, size)
   
@@ -1338,23 +1338,6 @@ plot_blank = function() {
   p1
 } 
 
-format_file_size_tbl = function(file_size_df) {
-  gt_tbl = gt(file_size_df) %>% 
-    #tab_header(title = md('**File Size Difference**')) %>% 
-    tab_style(style = list(cell_text(color = 'red')),
-              locations = cells_body(columns = rel_diff,
-                                     rows = abs(rel_diff) > 5)) %>% 
-    fmt_missing(columns = everything()) %>% 
-    cols_label(fname = 'File',
-               test = 'Test Run',
-               ref = 'Reference Run',
-               abs_diff = 'Size difference (B)',
-               rel_diff = 'Size difference (%)') %>% 
-    cols_align(align = 'right',
-               columns = -fname)
-  gt_tbl
-}
-
 # THEME FUNCS -------------------------------------------------------------
 
 theme_emep_diffmap = function(emep_plot) {
@@ -1653,6 +1636,25 @@ format_maps_page_title = function(outer_test_pth = NA, outer_ref_pth = NA,
   pg_title
 }
 
+format_file_size_table = function(file_size_df) {
+  gt_tbl = gt(file_size_df) %>% 
+    tab_style(style = list(cell_text(color = 'red')),
+              locations = cells_body(columns = rel_diff,
+                                     rows = abs(rel_diff) > 5)) %>% 
+    fmt_missing(columns = everything()) %>% 
+    cols_label(fname = 'File',
+               test = 'Test Run',
+               ref = 'Reference Run',
+               abs_diff = 'Size difference (B)',
+               rel_diff = 'Size difference (%)') %>% 
+    cols_align(align = 'right',
+               columns = -fname) %>% 
+    tab_options(data_row.padding = px(3),
+                
+                table.align='left')
+  gt_tbl
+}
+
 format_inv_table = function(inv_dframe) {
   em_table = inv_dframe %>%
     select(Land, pollutant, rel_diff) %>%
@@ -1671,4 +1673,17 @@ format_inv_table = function(inv_dframe) {
                      str_replace_all(x, '\\[', "<sub>") %>% 
                        str_replace_all('\\]', "</sub>")
                    })
+}
+
+format_MBS_table = function(MBS_dframe) {
+  MBS_table = MBS_dframe %>% 
+    select(species, rel_diff) %>%
+    gt() %>% 
+    cols_label(species = 'Species',
+               rel_diff = 'Difference (%)') %>% 
+    cols_align(align = 'right',
+               columns = rel_diff) %>% 
+    fmt_number(columns = rel_diff, decimals = 1) %>% 
+    tab_options(data_row.padding = px(3),
+                table.align='left')
 }
