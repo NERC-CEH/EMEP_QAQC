@@ -61,21 +61,10 @@ EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 
 QAQC_DIR = TEST_INNER_DIR
 
-if (is.na(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
-  qaqc_pth_out = dir_create(path(QAQC_DIR))
-} else {
-  qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
-}
-
-report_pth_out = dir_create(path(qaqc_pth_out, 'Reports'))
-maps_pth_out = dir_create(path(qaqc_pth_out, 'Maps'))
-plots_pth_out = dir_create(path(qaqc_pth_out, 'Plots'))
-tables_pth_out = dir_create(path(qaqc_pth_out, 'Tables'))
-data_pth_out = dir_create(path(qaqc_pth_out, 'Data'))
-
 # output fnames -----------------------------------------------------------
 ### provide filenames for qaqc output
 
+REPORT_FNAME = 'QAQC_Report.html'                    # name of the published report (must be .html)
 BUDGET_TABLE_FNAME = 'Budget_table.csv'              # deposition and surf conc summary (DSC)
 BUDGET_PLOT_FNAME = 'Budget_diff.png'                 # budget_table plotted if exactly 2 runs are being compared
 DSC_MAPS_FNAME = 'DSC_maps.pdf'                      # DSC maps pdf
@@ -144,3 +133,17 @@ MODSTATS_STATS = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r')            #choose sta
 
 
 PPP = 4                        #plots per page for obs-mod - do NOT change (unless a good reason!)
+
+# output paths ------------------------------------------------------------
+
+if (is.na(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
+  qaqc_pth_out = dir_create(path(QAQC_DIR))
+} else {
+  qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
+}
+
+report_pth_out = dir_create(path(qaqc_pth_out, 'Reports'))
+maps_pth_out = dir_create(path(qaqc_pth_out, 'Maps'))
+plots_pth_out = dir_create(path(qaqc_pth_out, 'Plots'))
+tables_pth_out = dir_create(path(qaqc_pth_out, 'Tables'))
+data_pth_out = dir_create(path(qaqc_pth_out, 'Data'))
