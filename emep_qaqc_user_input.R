@@ -10,16 +10,14 @@ EMEP_CRS_STEREO2 = '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y
 # USER INPUT --------------------------------------------------------------
 
 # tasks -------------------------------------------------------------------
-
-PLOT_COMPARISON_MAPS = T
-CALCULATE_BUDGET = T
-PLOT_DSC = T
-COLLATE_MOBS = T
-SAVE_MOBS_RDS = T
-PLOT_MOBS_PDF = T
+COMPARE_FILE_SIZE = T
 COMPARE_EMISSIONS = T
+COMPARE_BUDGET_MSC = T
+PLOT_COMPARISON_MAPS = T
+COLLATE_MOBS = T
+PLOT_MOBS = T
 
-# input paths and fnames -------------------------------------------------------------------
+# input dirs and fnames -------------------------------------------------------------------
 ### provide ABSOLUTE paths - for OUTER (e.g. EU) and INNER (e.g. UK) domains
 ###                        - TEST is the RUN that needs QAQC, REF is the reference run for comparison
 ###                           - not all fnames are required, in which case set them to NA
@@ -28,7 +26,7 @@ COMPARE_EMISSIONS = T
 ###                           - BUDGET_MASK is a shp (or.gpkg) file for area masking (e.g. UK land)
 ###                        - TEST_OBS is the run used for comparisons with observations
 
-###set fnames to NA if not needed
+###set directories to NA if not needed
 TEST_OUTER_DIR = NA
 TEST_INNER_DIR = NA
 REF_OUTER_DIR = NA
@@ -39,6 +37,7 @@ EMEP_BUDGET_DIR = c(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default ful
 
 BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
 EMISSION_INVENTORY_PTH = 'WebdabEMEP_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
+REF_MOBS_DIR = NA
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
 
@@ -50,14 +49,12 @@ EMEP_CRS = EMEP_CRS_STEREO2
 
 EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 
-# output paths ------------------------------------------------------------
+# output directory ------------------------------------------------------------
 ### qaqc output directory is by default the directory of the inner EMEP domain test run
 
 ### the output can be saved in a different directory in which case the QAQC_DIR !!!MUST!!! contain the project
 ### name (and maybe a year as a subdirectory if multiple years are qaqced)
 ### e.g. QAQC_DIR = dir_create(path('/home/tomlis65/QAQC_output/ONS/URBAN/2007'))
-
-### please do not change any other paths!
 
 QAQC_DIR = TEST_INNER_DIR
 
@@ -136,6 +133,7 @@ PPP = 4                        #plots per page for obs-mod - do NOT change (unle
 
 # output paths ------------------------------------------------------------
 
+### please do not change any paths unless you have a very good reason (there isn't one!)
 if (is.na(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
   qaqc_pth_out = dir_create(path(QAQC_DIR))
 } else {
