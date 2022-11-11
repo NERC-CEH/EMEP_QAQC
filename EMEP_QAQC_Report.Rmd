@@ -443,7 +443,9 @@ report_plots_list = comp_plots_list[str_detect(names(comp_plots_list), report_ma
 #check if any vars in COMP_MAP_VARS_REPORT are not plotted (i.e. not present in the EMEP output) and 
 #remove from COMP_MAP_VARS_REPORT)
 report_plots_vars = COMP_MAP_VARS_REPORT[map_lgl(COMP_MAP_VARS_REPORT, ~any(str_detect(names(comp_plots_list), .x)))]
-
+map_headings = names(report_plots_list) %>%
+  str_replace('_i$', ' (inner domain)')
+  
 for (i in seq_along(report_plots_list)) {
   report_plots_list[[i]] = report_plots_list[[i]] +
     theme(plot.margin = margin(5.5,5.5,4*5.5,5.5, "pt"))
@@ -458,9 +460,11 @@ Maps for selected variables - *`r stringi::stri_replace_last_fixed(report_plots_
 ```
 
 
-```{r plot_maps_report, echo=FALSE, eval = PLOT_COMPARISON_MAPS, fig.height=10 *(domain_dims[2]/domain_dims[1]*1.1)}
+```{r plot_maps_report, echo=FALSE, eval = PLOT_COMPARISON_MAPS, fig.height=10 *(domain_dims[2]/domain_dims[1]*1.1), results='asis'}
 for (i in seq_along(report_plots_list)) {
+  cat('\n### ', map_headings[i], '\n')
   print(report_plots_list[[i]])
+  cat('\n\n\n')
 }
 ```
 `r if (!PLOT_COMPARISON_MAPS) {"\\end{comment}"}`
