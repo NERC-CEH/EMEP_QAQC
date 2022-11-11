@@ -36,7 +36,7 @@ EMEP_BUDGET_DIR = c(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default ful
                                                    #the test fname must be the first element of the vector
 
 BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
-EMISSION_INVENTORY_PTH = 'WebdabEMEP_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
+EMISSION_INVENTORY_PTH = 'Emission_Inventory_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
 REF_MOBS_DIR = NA
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
