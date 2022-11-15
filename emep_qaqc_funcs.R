@@ -358,9 +358,10 @@ collate_obs_mod_stars = function(site_geo_df, emep_pth, poll_lookup, emep_crs = 
 
 calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
                                outer_test_fname = NA, outer_ref_fname = NA,
-                               inner_test_fname = NA, inner_ref_fname = NA, emep_crs = NA) {
+                               inner_test_fname = NA, inner_ref_fname = NA,
+                               test_crs = NA, ref_crs = NA) {
   
-  if (is.na(emep_crs)) stop('emep_crs MUST be provided!')
+  if (any(is.na(c(test_crs, ref_crs)))) stop('Both test_crs and ref_crs MUST be provided!')
   
   #determine what needs plotting and check if paths are valid
   emep_fnames = c(outer_test_fname, outer_ref_fname, inner_test_fname, inner_ref_fname) %>% 
@@ -403,7 +404,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
   #calculate the abs and rel differences between test and reference runs
   if (plot_mode =='both_diff') {
     
-    emep_data = load_emep_data(emep_fnames, rep(emep_crs, length(emep_fnames)), vars = var)
+    emep_data = load_emep_data(emep_fnames, rep(c(test_crs, ref_crs), 2), vars = var)
     if (is.null(emep_data)) return(NULL)
     
     emep_data = map(emep_data, st_as_stars) %>% 
@@ -422,8 +423,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
   
   if (plot_mode == 'outer_diff') {
     
-    emep_data = load_emep_data(na.omit(emep_fnames), rep(emep_crs, length(na.omit(emep_fnames))),
-                               vars = var)
+    emep_data = load_emep_data(na.omit(emep_fnames), c(test_crs, ref_crs), vars = var)
     if (is.null(emep_data)) return(NULL)
     emep_data = map(emep_data, st_as_stars) %>% 
       map(~set_names(.x, nm = var))
@@ -438,8 +438,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
   
   if (plot_mode == 'inner_diff') {
     
-    emep_data = load_emep_data(na.omit(emep_fnames), rep(emep_crs, length(na.omit(emep_fnames))),
-                               vars = var)
+    emep_data = load_emep_data(na.omit(emep_fnames), c(test_crs, ref_crs), vars = var)
     if (is.null(emep_data)) return(NULL)
     
     emep_data = map(emep_data, st_as_stars) %>% 
@@ -629,9 +628,12 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   
   var = str_replace(names(diff_list)[1], '_[^_]+$', '')
   #download country borders for plotting
-  boundaries = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
-    st_cast("MULTILINESTRING") %>%  
+  boundaries0 = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
+    st_cast("MULTILINESTRING")
+  boundaries_test = boundaries0 %>%  
     st_transform(st_crs(diff_list[[1]][[1]]))
+  boundaries_ref = boundaries0%>%  
+    st_transform(st_crs(diff_list[[1]][[2]]))
   
   #breaks and labels for colorbars
   map_breaks = VAR_PARAMS_LIST[[var]][['map_levs']]
@@ -674,7 +676,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
       geom_stars(data = cut(p1_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
   }
   p1 = p1 + 
-    geom_sf(data = st_crop(boundaries, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
+    geom_sf(data = st_crop(boundaries_test, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
                       labels = map_labs,
                       guide = guide_coloursteps(title.position = 'top',
@@ -693,7 +695,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
       geom_stars(data = cut(p2_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
   }
   p2 = p2 + 
-    geom_sf(data = st_crop(boundaries, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
+    geom_sf(data = st_crop(boundaries_ref, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
                       labels = map_labs,
                       guide = guide_coloursteps(title.position = 'top',
@@ -714,7 +716,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
         geom_stars(data = cut(p3_list[[i]], breaks = diff_breaks))
     }
     p3 = p3 +
-      geom_sf(data = st_crop(boundaries, p3_list[[1]]), color = "black", fill = NA, size = 0.07) + 
+      geom_sf(data = st_crop(boundaries_test, p3_list[[1]]), color = "black", fill = NA, size = 0.07) + 
       scale_fill_manual(values = ncl_rwb, drop = F, 
                         labels = diff_labels,
                         guide = guide_coloursteps(title.position = 'top',
@@ -754,7 +756,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
         geom_stars(data = cut(p4_list[[i]], breaks = c(-1e6, seq(-100, 100, 10), 1e6)))
     }
     p4 = p4 +
-      geom_sf(data = st_crop(boundaries, p4_list[[1]]), color = "black", fill = NA, size = 0.07) + 
+      geom_sf(data = st_crop(boundaries_test, p4_list[[1]]), color = "black", fill = NA, size = 0.07) + 
       scale_fill_manual(values = ncl_rwb, drop = F, 
                         labels = diff_rel_labels,
                         guide = guide_coloursteps(title.position = 'top',

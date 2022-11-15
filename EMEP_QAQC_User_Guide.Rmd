@@ -1,0 +1,184 @@
+---
+title: "EMEP QAQC User Guide 0.1"
+author: "Tomas Liska"
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+    toc_depth: 4
+    number_sections: true
+    fig_width: 10
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, eval = T)
+```
+
+# Introduction
+This user guide has been written to help you to run a QA/QC procedure of your EMEP4UK model run on UKCEH HPC Polar. It explains how to use the suite of EMEP4UK QA/QC R scripts in order to produce the QA/QC report, how and why to alter the default input parameters and finally it outlines the troubleshooting checklist if things go wrong.
+\
+\
+The QA/QC procedure consists of several tasks described in detail below. The procedure outputs a summary report as well as summary tables, summary plots, maps and time series plots in the user specified output directory. Any number of tasks can be selected. The procedure is designed to work for any EMEP output regardless of the coordinate system and whether a nested or standalone domain was modelled.
+\
+\
+The procedure currently requires you to supply a test run, and a reference run against which the test run is evaluated. There are two exceptions to this condition; the budget calculation and evaluation against observations tasks do not require a reference run.
+\
+\
+It is assumed that you have access to Polar HPC at UKCEH, have the conda emep_qaqc environment installed and have pulled the QAQC scripts from the github EMEP_QAQC repository. If not, please refer to the First Time Installation section at the end of this document.
+
+# Running the QAQC
+The QAQC suite consists of five R scripts and some auxiliary files such as inventory emissions, area masks and others. The key file is **emep_qaqc_user_input.R** where the vast majority of parameters are set.
+
+## emep_qaqc_user_input.R
+At the top of the user input file there are proj4 definitions of the coordinate systems (CS) currently used in EMEP4UK modelling. These should not be edited unless a new CS is introduced in our modelling. Following the CS definitions is the USER INPUT section of the file which should be edited as needed for your QAQC run.
+\
+\
+
+### Coordinate Systems
+You have to select the CS of the EMEP4UK test and reference runs from the definitions at the top of the file. You also have to set the projection for each EMEP4UK run submitted for the budget calculation (described in detail below) since an arbitrary number of EMEP4UK runs can be submitted for the budget calculation and comparison.
+\
+\
+
+### Tasks
+There are currently 6 available tasks. Most tasks save plots or tables whose file names can be specified by the user. All tasks are by default set to TRUE (they are run unless set to FALSE) and are completed in the following order: 
+\
+\
+
+#### COMPARE_FILE_SIZE
+This task prints a simple summary of the test run file size and its comparison to the size of the reference run in the report. Available for both outer and inner EMEP4UK domains.
+\
+\
+
+#### COMPARE_EMISSIONS
+This tasks compares emissions totals in the RunLog.out EMEP4UK output file with the emission inventory. The emission totals in the MassBudgetSummary.txt file (in the model output directory) between the test and reference runs are also compared. You must provide a path to the inventory file through the EMISSION_INVENTORY_PTH parameter in the *Input dirs and fnames* section and the inventory file must have the correct formatting as shown in the example below. By default the inventory file is the EMEP European emissions. Bear in mind that the emission comparison between the test and reference runs is only appropriate if the test and reference domains are identical.
+\
+\
+Emission differences exceeding the percentage set in EMISS_DIFF_THRESHOLD (set in *Other parameters* section) will be printed in the report.
+\
+\
+
+#### COMPARE_BUDGET_MSC
+This tasks calculates the budget or mean surface concentrations (MSC) for EMEP output species. You set the evaluated EMEP species by naming them in the BUDGET_VARS vector (*Other parameters* section). For example: `r BUDGET_VARS = c('SURF_ug_NO2', 'DDEP_SOX')`. By default the BUDGET_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the budg_factor parameter set are used. For the budget calculation all of budg_factor, budg_unit and budg_stat parameters must be provided. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. For your information a table listing all species for which the budget is calculated is printed in the report.
+\
+\
+The calculated values are automatically saved in a table. You can limit the area over which the budget or MSCs are calculated by providing a path to an area mask file. The file must be in either a geopackage or shapefile format and is set in the BUDGET_MASK_FNAME variable (*Input dirs and fnames* section). If masking is not required set the BUDGET_MASK_FNAME to "NA".
+\
+\
+If exactly two model runs (e.g. test and reference) are submitted a table of budget differences will be saved and the EMEP species for which the difference exceeds the percentage set in BUDGET_DIFF_THRESHOLD (*Other parameters* section) will be printed in the report. 
+\
+\
+This tasks also prints a pdf document with maps for each of the EMEP species for which the budget or MSC has been calculated. You need to provide break values for the plot colourbars and set them using the dsc_levs parameter in the VAR_PARAMS_LIST.
+\
+\
+
+#### PLOT_COMPARISON_MAPS
+This task plots maps of EMEP species and compares them with those in the reference run. For each species four maps are plotted: the test run, the reference run, absolute difference (test - ref) and relative difference(test - ref in %). The differences are only plotted if the test and reference domains and resolutions are identical. As in the budget calculation, you set the mapped species by naming them in the COMP_MAP_VARS vector (*Other parameters* section). For example: `r COMP_MAP_VARS = c('SURF_ug_NO2', 'DDEP_SOX')`. By default, the COMP_MAP_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the map_levs parameters set are used. In addition, the map_difflevs, map_diffprecision and units parameters must be set. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. A table listing all species for which the maps are plotted is printed in the report for you to check.
+\
+\
+The maps are saved in a pdf document. A selection of species set in the COMP_MAP_VARS_REPORT is printed in the report. If both outer and inner modelling domains are used the inner domain only maps will be plotted immediately after the composite of outer + inner maps for each species. 
+\
+\
+
+#### COLLATE_MOBS
+This task collates modelled concentrations with observations. Currently only hourly values are collated, however this will be addressed in further updates. The observations are taken from the AURN monitoring network by default. You can also choose automatic observations (AUTO_NETWORK parameter in *Other parameters* section) from the SAQN, WAQN, NIQA and AQE networks as well as other observational datasets as described below. The observed data from automatic monitoring stations in the UK are pulled from the Ricardo servers in real time. The collated datasets are automatically saved in the Data subdirectory of the QAQC directory. This task is the most computing power hungry and therefore most time consuming. If the data has already been collated previously set this task to FALSE. In that case the data for the PLOT_MOBS task are pulled from the Data subdirectory.  
+\
+\
+As mentioned above, you can provide observational data from other sources. However, the data must be in the same format as the Ricardo datasets, i.e. each file must contain data for one site and have hourly data with the following columns: 'code' (site identifier), 'date' (datetime format) and pollutant name for each pollutant with concentrations as values in the pollutant column. The pollutant name must match the names in Ricardo datasets ('no2', 'no', 'o3', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25'). Additionally, an rds file with metadata for each site must be provided and the path to it included in the AUTO_NETWORK parameter (e.g. AUTO_NETWORK = '/home/tomlis65/custom_obs_meta.rds'). Similarly to the Ricardo meta files the rds file must contain columns 'code' (site identifier) , 'site' (site name), 'site_type_grp' (could be set to 'unknown' if not known), 'latitude' and 'longitude'. Additionally, there must be a column 'network' with the full path to the site data.
+\
+\
+Both automatic and user provided observations can be used at the same time. E.g. AUTO_NETWORK = c('AURN', '/home/tomlis65/custom_obs_meta.rds')
+\
+\
+You must link the pollutant name with the EMEP species name using the OBSERVED_POLLS_EMEP_LINK named vector (*Other parameters* section). This is particularly important for PM for which the EMEP name has changed in the past. 
+\
+\
+This task also calculates model evaluation statistics for the model run and saves them in a table in the Tables subdirectory. 
+\
+\
+
+#### PLOT_MOBS
+This task uses the collated modelled/observed datasets and produces time series plots for each site. Each site gets its own pdf document (name of the file is based on the station code) with daily means for the whole year and hourly means for each month. The plot parameters for standard pollutants ('no', 'no2', 'o3', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25') are set in **emep_vars_parameters.R**. For other pollutants the parameters need to be set before plotting.
+\
+\
+In addition to the time series plots, scatter plots of modelled vs observed annual means per site type are plotted and saved in the Plots subdirectory.
+\
+\
+In the report the daily means time series plots are shown for sites in the MOBS_STATION_REPORT_TSERIES vector (*Other parameters* section). A map of the selected station is printed in the report too if the MOBS_STATION_REPORT_MAP parameter (also in *Other parameters* section) is set to TRUE
+\
+\
+
+### Input and Ouput directories and file names
+
+In this section of the user input file you will have to set the required paths and file names. Both test and reference directories must be given, however you can choose whether just the inner domain, just the outer domain, or both are QAQCed. If not needed set the appropriate directories to "NA".
+\
+\
+By default, the budget calculations are performed on inner test and reference runs. If that isn't the case for your run, change the EMEP_BUDGET_DIR accordingly. The test run must come first in the EMEP_BUDGET_DIR as the budget and MSC maps are only plotted for the first dir in the vector.
+\
+\
+The REF_MOBS_DIR parameter enables the model evaluations stats to be calculated for the reference run and compared with the test run, if the modelled and observed concentrations have been previously collated and saved. This is useful if checking whether the test run has improved the modelling output. The comparison stats table is printed in the report. The REF_MOBS_DIR is the directory where the reference modelled/observed datasets are stored. It should be set to "NA" if not needed.  
+\
+All the outputs are saved in the directory set by the OUTPUT_DIR parameter. It is by default set to the inner domain directory of the test run where a QAQC subdirectory will be created. However, due to writing permission restrictions if you are QAQCing someone else's run you will have to set it to a directory in your own home directory. Subdirectories for Data, Plots, Maps, Tables and Report will be also created in the QAQC output directory. The paths for these can be altered if needed (*Output paths* section), however this could potentially lead to problems later on and is strongly discouraged.
+\
+\
+The default output file names are listed next. You can change those if necessary, however for the sake of consistency this is also discouraged.
+\
+\
+
+### Other parameters
+In this section other non-key parameters can be changed if needed. Some of those have been mentioned already. Below is the description of the remaining ones:
+\
+\
+RUN_LABELS sets the names for the test and reference runs that will be printed in the output (particularly the comparison maps).
+\
+\
+PRETTY_LABS allows for properly formatted labels to be printed in the output. The default is FALSE which means labels will be set to EMEP4UK species names e.g. 'SURF_ug_NO2'. If you set this to TRUE the *pretty_labs* parameters in the VAR_PARAMS_LIST must be set for all analysed EMEP4UK species.
+\
+\
+OBSERVED_POLLS - a vector of pollutant names for the model/observation data collation and plotting.
+\
+\
+PLOT_ALL_OBSERVED_POLLS - if set to TRUE it will print time series plots for all pollutants in the OBSERVED_POLLS vector whether the observation site measures them or not. I.e. only the modelled values will be printed for the pollutants without observations. 
+\
+\
+MODSTATS_STATS - a vector of model evaluation statistics. Refer to the openair::modStats function help page for a list of available stats.
+\
+\
+PPP - the number of plots per page in the time series pdf output. Ideally not to be changed.
+\
+\
+
+## emep_vars_parameters.R
+As referred to previously, this file contains the calculation and plotting parameters for EMEP4UK species. If a species is missing please update the file. 
+
+## myquicktext.R
+This is an extension of the openair::quickText function covering species present in the EMEP output. This file is only used if the PRETTY_LABS parameter is set to TRUE. Some species may have been missed in which case you will have to update the file.
+
+## EMEP_QAQC_Report.Rmd
+The R Markdown document used to create all the outputs. You should not need to edit it in any way.
+
+## Renderer.R
+This script is used to render the EMEP_QAQC_Report. This file should be referred to when submitting a job to the Polar queue system.
+\
+\
+
+# First Time Installation {-}
+## Clone GitHub Repository {-}
+The QAQC R scripts and auxiliary files are in the UKCEH GitHub repository EMEP_QAQC. Clone the repository to your home directory with:
+
+```{bash clone_repo, eval = F}
+git clone https://github.com/vulpescz/EMEP_QAQC.git
+```
+
+## Conda installation on Polar {-}
+To install conda run the shell script that you will find in **/home/mvi/Miniconda3-latest-Linux-x86_64.sh**, then restart your shell.
+
+## Conda environment installation {-}
+Once you have conda installed in your home directory, move to the directory with the cloned QAQC git repo and import the environment from the EMEP_QAQC_ENV.yml file:
+```{bash install_env, eval = F}
+conda env create -n emep_qaqc --file EMEP_QAQC_ENV.yml
+```
+
+Then activate the environment with 
+```{bash activate_env, eval = F}
+conda activate emep_qaqc
+```
+YOu are then ready to run your QAQC

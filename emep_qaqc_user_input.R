@@ -8,6 +8,12 @@ EMEP_CRS_STEREO1 = NULL
 EMEP_CRS_STEREO2 = '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +units=km +k_0=0.9330127018922193 +no_defs +type=crs'
 
 # USER INPUT --------------------------------------------------------------
+# Coordinate systems --------------------------------------------------------------
+TEST_CRS = EMEP_CRS_STEREO2
+REF_CRS = EMEP_CRS_STEREO2
+
+EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
+
 
 # tasks -------------------------------------------------------------------
 COMPARE_FILE_SIZE = T
@@ -17,7 +23,7 @@ PLOT_COMPARISON_MAPS = T
 COLLATE_MOBS = T
 PLOT_MOBS = T
 
-# input dirs and fnames -------------------------------------------------------------------
+# Input dirs and fnames -------------------------------------------------------------------
 ### provide ABSOLUTE paths - for OUTER (e.g. EU) and INNER (e.g. UK) domains
 ###                        - TEST is the RUN that needs QAQC, REF is the reference run for comparison
 ###                           - not all fnames are required, in which case set them to NA
@@ -41,15 +47,7 @@ REF_MOBS_DIR = NA
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
 
-# projections --------------------------------------------------------------
-### declare projections - the projection MUST be the same for all EMEP input files
-###                       except for EMEP_BUDGET_FNAMEs - they need to be declared separately
-
-EMEP_CRS = EMEP_CRS_STEREO2
-
-EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
-
-# output directory ------------------------------------------------------------
+# Output directory ------------------------------------------------------------
 ### qaqc output directory is by default the directory of the inner EMEP domain test run
 
 ### the output can be saved in a different directory in which case the QAQC_DIR !!!MUST!!! contain the project
@@ -58,7 +56,7 @@ EMEP_BUDGET_CRS = c(EMEP_CRS_STEREO2, EMEP_CRS_STEREO2)
 
 QAQC_DIR = TEST_INNER_DIR
 
-# output fnames -----------------------------------------------------------
+# Output fnames -----------------------------------------------------------
 ### provide filenames for qaqc output
 
 REPORT_FNAME = 'QAQC_Report.html'                    # name of the published report (must be .html)
@@ -75,7 +73,8 @@ INV_MOD_EMISS_TABLE_FNAME = 'inv_mod_emiss_table.csv'# emission comparison betwe
 #  - will be preceded by domain name
 INV_MOD_EMISS_PLOT_FNAME = 'inv_mod_emiss.pdf'        # inv_mod_emiss_table plotted
 #  - will be preceded by domain name
-# other parameters --------------------------------------------------------------
+
+# Other parameters --------------------------------------------------------------
 
 RUN_LABELS = c('Test', 'Reference')                                # labels for test and ref comparison maps
 PRETTY_LABS = F                                                    # properly formatted pollutant labels (for external publishing) 
@@ -108,7 +107,7 @@ MOBS_STATION_REPORT_MAP = T #show selected MOBS station for the report on a map
 
 OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pollutants -if any other compounds added
 # their plotting params must be set in 
-# OBS_VAR_PARAMS_LIST - see 'emep_vars_parameters0.R'
+# OBS_VAR_PARAMS_LIST - see 'emep_vars_parameters.R'
 
 #non-auto species
 NONAUTO_SPECIES = c('Ca_p', 'Cl_p', 'HCl_g', 'HNO3_g', 'HONO_g', 'Mg_p', 'Na_p',
