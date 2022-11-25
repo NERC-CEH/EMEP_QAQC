@@ -54,7 +54,8 @@ USERS = c(tomlis65 = 'Tomas Liska',
           mvi = 'Massimo Vieno',
           jansch = 'Janice Scheffler',
           yuawan = 'Yuanlin Wang',
-          racbec = 'Rachel Beck')
+          racbec = 'Rachel Beck',
+          liqyao = 'Liquan Yao')
 
 #initiate domain_dims for chunk params (crashes without it)
 domain_dims = c(1,1)
@@ -64,11 +65,17 @@ future::plan(multicore)
 
 
 ```{r run info, echo = F}
-test_run_info = na.omit(c(TEST_INNER_DIR, TEST_OUTER_DIR)) %>% 
-  path_common()
+test_run_info = tryCatch(
+  error = function(cnd) NA_character_,
+  c(TEST_INNER_DIR, TEST_OUTER_DIR) %>% 
+    path_common()
+)
 
-ref_run_info = na.omit(c(REF_INNER_DIR, REF_OUTER_DIR)) %>% 
-  path_common()
+ref_run_info = tryCatch(
+  error = function(cnd) NA_character_,
+  c(REF_INNER_DIR, REF_OUTER_DIR) %>% 
+    path_common()
+)
 
 inner_domain = path_split(TEST_INNER_DIR) %>% 
   map_chr(last)
