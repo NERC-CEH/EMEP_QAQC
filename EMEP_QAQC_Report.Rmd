@@ -625,6 +625,23 @@ mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant',
   relocate(site_type_grp, .after = pollutant)
 ```
 
+```{r plot_mobs, include=FALSE, eval = PLOT_MOBS}
+# #plot scatter plots of annual means (like for like - missing observations are dropped from modelled data too)
+mobs_plots = plot_annual_scatter(mobs_list = mobs_list, site_meta_df = sites_geo, poll_name_lookup = mobs_polls)
+mobs_plots = mobs_plots[order(match(mobs_plots, mobs_polls))]
+
+#get EMEP run fname for title on pdf plots
+run_info = format_maps_page_title(inner_test_pth = select_file_from_dir(obs_dir), run_labels = 'EMEP run')
+
+page_titles = rep(run_info, length(mobs_plots) %/% PPP + 1)
+export = marrangeGrob(grobs = mobs_plots, nrow = PPP , ncol = 1, top = substitute(page_titles[g]))
+ggsave(filename = path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf'), export, paper = 'a4', height = 10, width = 7)
+
+#plot daily and hourly mobs per site
+future_walk(mobs_list, site_time_series_pdf3, sites_geo, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
+            ppp = PPP, run_title_info = run_info)
+```
+
 # Observations
 
 ```{r mobs_report_base_map, include=FALSE, eval = PLOT_MOBS}
