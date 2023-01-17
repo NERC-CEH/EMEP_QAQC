@@ -538,7 +538,20 @@ sites_geo = sites_geo %>%
          .before = poll_info)
 
 #write meta data to files - rds for further use and csv for easier human check
-write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
+#check if Sites_used file already present and increase numbering if needed
+sites_used_files = dir_ls(data_pth_out, regexp = '(M|m)ites.*\\.rds')
+if (length(sites_used_files) == 0) {
+  write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
+} else {
+  n = sites_used_files %>%
+    path_file() %>%
+    str_extract('\\d*') %>%
+    as.integer() %>%
+    max(na.rm = T) + 1
+  n_string = n %>%
+    str_pad(2, side = 'left', pad = '0')
+  write_rds(sites_geo, path(data_pth_out, paste0(n_string,'Sites_used.rds')))
+}
 
 #create a dataframe for site-pollutant iteration (enables parallel processing using furrr)
 iter_df = cross_df(list(code = sites_geo$code, poll = names(mobs_polls))) %>%
