@@ -1571,13 +1571,13 @@ apply_area_mask = function(stars_object, area_mask = NULL) {
 
 recode_site_type = function(site_type) {
   site_type_grp = case_when({{site_type}} %in% c("Urban Traffic","roadside","Roadside",
-                                         "Kerbside","kerbside") == T ~ 'Road',
+                                         "Kerbside","kerbside","traffic_urban") == T ~ 'Road',
                         {{site_type}} %in% c("Urban Background","Suburban Background", "urban",
-                                         "urban_background","suburban","urban_centre","Suburban") == T ~ 'Urban',
+                                         "urban_background","suburban","urban_centre","Suburban","background_urban","background_urban") == T ~ 'Urban',
                         #site_type %in% c('airport', 'Airport') == T ~ 'Airport',
-                        {{site_type}} %in% c('rural', 'Rural Background') == T ~ 'Rural',
+                        {{site_type}} %in% c('rural', 'Rural Background','background_rural','background_rural_regional') == T ~ 'Rural',
                         {{site_type}} %in% c('Suburban Industrial', 'Urban Industrial', 'urban_industrial', 'airport', 'Airport',
-                                         'Rural Industrial', 'Industrial') == T ~ 'Industrial')
+                                         'Rural Industrial', 'Industrial','industrial_suburban') == T ~ 'Industrial')
   site_type_grp
 }
 
