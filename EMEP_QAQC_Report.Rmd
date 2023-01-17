@@ -505,8 +505,9 @@ if (length(AUTO_NETWORK[!file_exists(AUTO_NETWORK)]) > 0) {
 } else auto_sites = NULL
 
 if (length(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) == 1) {
-  custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) %>% 
-    mutate(poll_info = NA_character_)
+custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) %>%
+    mutate(poll = NA_character_) %>%
+    nest(poll_info = c(poll))
 } else custom_sites = NULL
 
 sites_geo = bind_rows(auto_sites, custom_sites) %>%
@@ -606,7 +607,8 @@ emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
   st_as_stars()
 
 #read saved meta data
-sites_geo = read_rds(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'))
+sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds) %>%
+  distinct(code, .keep_all = T)
 
 #read saved mobs data
 mobs_pths = dir_ls(data_pth_out, regexp = '\\.rds') %>%
