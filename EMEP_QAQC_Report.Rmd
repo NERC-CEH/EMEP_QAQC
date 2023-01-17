@@ -60,7 +60,7 @@ USERS = c(tomlis65 = 'Tomas Liska',
 #initiate domain_dims for chunk params (crashes without it)
 domain_dims = c(1,1)
 
-future::plan(multicore)
+future::plan(multicore,workers=16)
 ```
 
 
@@ -505,7 +505,8 @@ if (length(AUTO_NETWORK[!file_exists(AUTO_NETWORK)]) > 0) {
 } else auto_sites = NULL
 
 if (length(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) == 1) {
-  custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)])
+  custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) %>% 
+    mutate(poll_info = NA_character_)
 } else custom_sites = NULL
 
 sites_geo = bind_rows(auto_sites, custom_sites) %>%
