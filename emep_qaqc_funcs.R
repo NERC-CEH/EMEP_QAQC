@@ -796,7 +796,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
 
 }
 
-plot_DSC = function(stars_object, evp_list, pretty_lab = F, display_summary = T) {
+plot_DSC = function(stars_object, evp_list, palette_dir = PALETTE_DIR, pretty_lab = F, display_summary = T) {
   
   if (display_summary == T) {
     budget_summary = calc_budget(stars_object, evp_list) %>% 
@@ -826,7 +826,7 @@ plot_DSC = function(stars_object, evp_list, pretty_lab = F, display_summary = T)
     } else {
       dsc_labs = as.character(dsc_levs[c(-1, -length(dsc_levs))])
     }
-    ncl_rainbow = read_color(path(PALETTE_DIR, 'WhiteBlueGreenYellowRed.rgb')) %>%
+    ncl_rainbow = read_color(path(palette_dir, 'WhiteBlueGreenYellowRed.rgb')) %>%
       get_color(n = length(dsc_levs), show = F)
     
     if (pretty_lab == T) {
