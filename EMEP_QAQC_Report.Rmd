@@ -60,7 +60,7 @@ USERS = c(tomlis65 = 'Tomas Liska',
 #initiate domain_dims for chunk params (crashes without it)
 domain_dims = c(1,1)
 
-future::plan(multicore)
+future::plan(multicore,workers=16)
 ```
 
 
@@ -505,7 +505,9 @@ if (length(AUTO_NETWORK[!file_exists(AUTO_NETWORK)]) > 0) {
 } else auto_sites = NULL
 
 if (length(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) == 1) {
-  custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)])
+custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) %>%
+    mutate(poll = NA_character_) %>%
+    nest(poll_info = c(poll))
 } else custom_sites = NULL
 
 sites_geo = bind_rows(auto_sites, custom_sites) %>%
@@ -536,7 +538,20 @@ sites_geo = sites_geo %>%
          .before = poll_info)
 
 #write meta data to files - rds for further use and csv for easier human check
-write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
+#check if Sites_used file already present and increase numbering if needed
+sites_used_files = dir_ls(data_pth_out, regexp = '(M|m)ites.*\\.rds')
+if (length(sites_used_files) == 0) {
+  write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
+} else {
+  n = sites_used_files %>%
+    path_file() %>%
+    str_extract('\\d*') %>%
+    as.integer() %>%
+    max(na.rm = T) + 1
+  n_string = n %>%
+    str_pad(2, side = 'left', pad = '0')
+  write_rds(sites_geo, path(data_pth_out, paste0(n_string,'Sites_used.rds')))
+}
 
 #create a dataframe for site-pollutant iteration (enables parallel processing using furrr)
 iter_df = cross_df(list(code = sites_geo$code, poll = names(mobs_polls))) %>%
@@ -605,7 +620,8 @@ emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
   st_as_stars()
 
 #read saved meta data
-sites_geo = read_rds(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'))
+sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds) %>%
+  distinct(code, .keep_all = T)
 
 #read saved mobs data
 mobs_pths = dir_ls(data_pth_out, regexp = '\\.rds') %>%
