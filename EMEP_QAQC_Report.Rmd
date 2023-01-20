@@ -21,6 +21,7 @@ library(ggpubr)
 library(gridExtra)
 library(rnaturalearth)
 library(gt)
+library(leaflet)
 source('emep_qaqc_user_input.R')
 source('myquicktext.R')
 source('emep_vars_parameters.R')
@@ -831,14 +832,9 @@ Observations have been taken from the `r network_string1`. A list of used sites 
 ```
 
 ``` {r, echo = FALSE, eval = PLOT_MOBS, fig.width = 10, fig.height = 10*(domain_dims[2]/domain_dims[1]*1.1)}
-site_plot_all = site_plot +
-  geom_sf(data = st_transform(sites_geo, st_crs(country_borders)), aes(color = site_type_grp, shape = site_type_grp), stroke = 1)
-site_plot_all = theme_site_map(site_plot_all) +
-  theme(plot.margin = unit(c(1,1,1,1), 'cm'),
-        legend.position = 'bottom',
-        legend.direction = 'horizontal') +
-  ggtitle('Location of monitoring sites')
-print(site_plot_all)
+sites_geo = sites_geo %>%
+  mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural', 'Unknown'), ordered = T))
+plot_mobs_sites_map(sites_geo)
   
 ```
 
@@ -860,7 +856,6 @@ The differences in model evaluation stats between the test and reference runs ar
 ```{r mobs_report_selected_map, echo = FALSE, eval = PLOT_MOBS, results='asis'}
 #select just sites that show time series in the report
 sites_geo_map_sub = sites_geo %>% 
-st_transform(st_crs(country_borders)) %>% 
 filter(code %in% MOBS_STATION_REPORT_TSERIES)
 cat('\n## Daily mean concentrations at selected sites\n\n')
 ```
@@ -868,18 +863,7 @@ cat('\n## Daily mean concentrations at selected sites\n\n')
 
 ```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 10, fig.height = 10*(domain_dims[2]/domain_dims[1]*1.1), results = 'asis'}
 
-site_plot_selected = site_plot +
-  geom_sf(data = sites_geo_map_sub, aes(color = site_type_grp, shape = site_type_grp), stroke = 1) +
-  ggrepel::geom_label_repel(data = sites_geo_map_sub, aes(label = code, color = site_type_grp, geometry = geometry),
-                            stat = 'sf_coordinates', show.legend = F)
-
-  site_plot_selected = theme_site_map(site_plot_selected) +
-  theme(plot.margin = unit(c(1,1,1,1), 'cm'),
-      legend.position = 'bottom',
-      legend.direction = 'horizontal') +
-  ggtitle('Location of selected monitoring sites')
-
-print(site_plot_selected)
+plot_mobs_sites_map(sites_geo_map_sub)
 ```
 
 ```{r, mobs_report_plot_tseries, echo = FALSE, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0, fig.width = 10, fig.height = 18, results ='asis'}
