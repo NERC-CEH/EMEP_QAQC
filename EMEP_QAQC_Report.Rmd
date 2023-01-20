@@ -379,7 +379,7 @@ comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x,
                                                                   outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
                                                                   inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
                                                                   inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
-                                                                  test_crs = TEST_CRS, ref_crs = REF_CRS ))
+                                                                  test_crs = TEST_CRS, ref_crs = REF_CRS ), .options = furrr_options(seed = T))
 
 null_vars_lgl = comp_map_data %>% 
   map_lgl(is_null)
@@ -531,7 +531,7 @@ sites_geo = sites_geo %>%
 #get the 'x' and 'y' indexes for extracting data using ncdf4 functions
 emep_indexes = future_pmap_dfr(list(longitude = sites_geo$longitude,
                                     latitude = sites_geo$latitude),
-                               get_emep_indexes, str_subset(dir_ls(obs_dir), 'fullrun'))
+                               get_emep_indexes, str_subset(dir_ls(obs_dir), 'fullrun'), .options = furrr_options(seed = T))
 
 sites_geo = sites_geo %>%
   mutate(i = emep_indexes$row,
@@ -581,20 +581,21 @@ mobs_list = mobs_tlist$result[is_ok] %>%
 #output iterations ending in error
 print(iter_df[!is_ok, ])
 
-if ('ox' %in% OBSERVED_POLLS) {
-  mobs_list = mobs_list %>%
-    future_map(add_ox, .options = furrr_options(seed = T))
-}
-
 #convert to wide format for writing out to file (smaller file size)
 mobs_wide = mobs_list %>%
-  future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(pollutant), values_from = c(obs, mod)))
+  future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(pollutant), values_from = c(obs, mod)), .options = furrr_options(seed = T))
 
 mobs_data_pths = path(data_pth_out, paste0(names(mobs_list), '_mod_obs'), ext = 'rds')
 future_walk2(mobs_wide, mobs_data_pths, write_rds, .options = furrr_options(seed = T))
 
 #annual mean summary table
-a_means = map_dfr(mobs_list, summarise_mobs, avg_time = 'year') %>%
+
+if ('ox' %in% OBSERVED_POLLS) {
+  mobs_list = mobs_list %>%
+    future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
+}
+
+a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
 mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
   mutate(site_type_grp = 'All')
@@ -627,12 +628,17 @@ sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds
 #read saved mobs data
 mobs_pths = dir_ls(data_pth_out, regexp = '\\.rds') %>%
   str_subset('(S|s)ites', negate = T)
-mobs_list = future_map(mobs_pths, read_rds) %>%
-  future_map(mobs_to_long) %>%
+mobs_list = future_map(mobs_pths, read_rds, .options = furrr_options(seed = T)) %>%
+  future_map(mobs_to_long, .options = furrr_options(seed = T)) %>%
   #temporary to ensure code column is never NA due to a previous bug
-  future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)))
+  future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 
-a_means = map_dfr(mobs_list, summarise_mobs, avg_time = 'year') %>%
+if ('ox' %in% OBSERVED_POLLS) {
+  mobs_list = mobs_list %>%
+    future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
+}
+
+a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
 mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
   mutate(site_type_grp = 'All')
@@ -656,7 +662,7 @@ ggsave(filename = path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf'), expo
 
 #plot daily and hourly mobs per site
 future_walk(mobs_list, site_time_series_pdf3, sites_geo, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
-            ppp = PPP, run_title_info = run_info)
+            ppp = PPP, run_title_info = run_info, .options = furrr_options(seed = T))
 ```
 
 # Observations
@@ -737,10 +743,10 @@ if (T %in% custom_lgl) {
 ref_sites_geo = read_rds(dir_ls(REF_MOBS_DIR, regexp = '(S|s)ites.*\\.rds'))
 ref_mobs_pths = dir_ls(REF_MOBS_DIR, regexp = '\\.rds') %>%
   str_subset('(S|s)ites', negate = T)
-ref_mobs_list = future_map(ref_mobs_pths, read_rds) %>%
-  future_map(mobs_to_long) %>%
+ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(seed = T)) %>%
+  future_map(mobs_to_long, .options = furrr_options(seed = T)) %>%
   #temporary to ensure code column is never NA due to a previous bug
-  future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)))
+  future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 
 ref_a_means = map_dfr(ref_mobs_list, summarise_mobs, avg_time = 'year') %>%
   left_join(st_drop_geometry(dplyr::select(ref_sites_geo, code, site_type_grp)))

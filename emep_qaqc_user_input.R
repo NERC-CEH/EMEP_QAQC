@@ -109,6 +109,8 @@ OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pol
 # their plotting params must be set in 
 # OBS_VAR_PARAMS_LIST - see 'emep_vars_parameters.R'
 
+OX_UNITS = 'ppb' #if Ox is calculated in which units to output - either 'ppb' or 'ug/m3'
+
 #non-auto species
 NONAUTO_SPECIES = c('Ca_p', 'Cl_p', 'HCl_g', 'HNO3_g', 'HONO_g', 'Mg_p', 'Na_p',
                    'NH3_alpha', 'NH3_delta', 'NH3_diffusion_tube', 'NH4_p', 'NO2_p',
