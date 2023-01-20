@@ -831,7 +831,7 @@ Hourly modelled concentrations have been compared with observations for the foll
 Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **00Sites_used.rds** in the **Data** subdirectory. The location of the sites is shown in the map below.
 ```
 
-``` {r, echo = FALSE, eval = PLOT_MOBS, fig.width = 10, fig.height = 10*(domain_dims[2]/domain_dims[1]*1.1)}
+``` {r, echo = FALSE, eval = PLOT_MOBS, fig.width = 8.4}
 sites_geo = sites_geo %>%
   mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural', 'Unknown'), ordered = T))
 plot_mobs_sites_map(sites_geo)
@@ -861,7 +861,7 @@ cat('\n## Daily mean concentrations at selected sites\n\n')
 ```
 
 
-```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 10, fig.height = 10*(domain_dims[2]/domain_dims[1]*1.1), results = 'asis'}
+```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
 
 plot_mobs_sites_map(sites_geo_map_sub)
 ```
