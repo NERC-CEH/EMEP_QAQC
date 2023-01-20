@@ -587,17 +587,36 @@ summarise_mobs = function(mobs_lframe, pollutant = 'all', avg_time = 'day',
   
 }
 
-add_ox = function(site_dframe) {
-  #adds ox concentrations to the dataframe if both no2 and o3 present
+add_ox = function(site_dframe, df_format = c('long', 'wide'), units = 'ug/m3') {
+  #adds ox concentrations to the dataframe if both no2 and o3 (must be in ug/m3) are present
+  
+  if (all(df_format == 'wide')) {
+    site_dframe = mobs_to_long(site_dframe)
+  }
   if (all(c('no2', 'o3') %in% unique(site_dframe$pollutant))) {
-    site_dframe = site_dframe %>%
+    site_dframe_ox = site_dframe %>%
       filter(pollutant %in% c('no2', 'o3')) %>%
-      pivot_wider(id_cols = c(date, code), names_from = pollutant, values_from = c(obs, mod)) %>%
-      mutate(pollutant = 'ox',
-             obs = obs_o3 + obs_no2,
-             mod = mod_o3 + mod_no2) %>%
-      dplyr::select(date, code, pollutant, obs, mod) %>%
-      bind_rows(site_dframe)
+      pivot_wider(id_cols = c(date, code), names_from = pollutant, values_from = c(obs, mod))
+    
+    if (units == 'ug/m3') {
+      site_dframe_ox = site_dframe_ox %>% 
+        mutate(pollutant = 'ox',
+               obs = obs_o3 + obs_no2,
+               mod = mod_o3 + mod_no2) %>%
+        dplyr::select(date, code, pollutant, obs, mod)
+    } else if (units == 'ppb') {
+      site_dframe_ox = site_dframe_ox %>%
+        mutate(pollutant = 'ox(ppb)',
+               obs = obs_o3/2 + obs_no2/1.9125,
+               mod = mod_o3/2 + mod_no2/1.9125) %>%
+        dplyr::select(date, code, pollutant, obs, mod)
+    } else {
+      stop('Units for Ox calculation can either be "ppb" or "ug/m3"')
+    }
+    site_dframe = site_dframe %>%
+      filter(!pollutant %in% c('no2', 'o3')) %>%
+      bind_rows(site_dframe_ox) %>% 
+      distinct()
   } else {
 
   }
