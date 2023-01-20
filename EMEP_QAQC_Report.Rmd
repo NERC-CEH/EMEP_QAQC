@@ -61,7 +61,7 @@ USERS = c(tomlis65 = 'Tomas Liska',
 #initiate domain_dims for chunk params (crashes without it)
 domain_dims = c(1,1)
 
-future::plan(multicore,workers=16)
+future::plan(multicore)
 ```
 
 

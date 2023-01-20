@@ -969,6 +969,19 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
   p
 }
 
+plot_mobs_sites_map = function(sites_df) {
+  pal = colorFactor(c('#7570b3', '#1b9e77', '#d95f02', '#e7298a', '#666666' ),
+                    domain = c('Urban', 'Rural', 'Industrial', 'Road', 'Unknown'), ordered = T)
+  
+  m = leaflet(data = sites_df) %>%
+    addProviderTiles(providers$Esri.WorldTopoMap) %>%
+    addCircleMarkers(color = ~pal(site_type_grp), opacity = 0.8,
+                     radius = 5, fill = F, weight = 3, popup = ~site, label = ~code) %>%
+    addLegend('topright', pal = pal, values = ~site_type_grp,
+              opacity = 1, title = 'Site Type Group')
+  
+  m
+}
 
 site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = NA, out_dir = '.',
                                  plot_all_polls = T, ppp = 4, run_title_info = '') {
@@ -1080,7 +1093,7 @@ plot_annual_scatter = function(mobs_list, site_meta_df, poll_name_lookup, pollut
 
   mobs_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year') %>% 
     left_join(site_meta_df, by = 'code') %>% 
-    mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural'), ordered = T))
+    mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural', 'Unknown'), ordered = T))
 
   
   #calculate max concentrations to determine x and y upper limits for plotting
@@ -1116,7 +1129,7 @@ plot_annual_scatter = function(mobs_list, site_meta_df, poll_name_lookup, pollut
       scale_x_continuous(limits = c(0, max_value * 1.02)) +
       scale_y_continuous(limits = c(0, max_value * 1.02)) +
       scale_shape_manual(values = c(Road = 1, Urban = 2, Industrial = 4, Rural = 0)) +
-      scale_color_manual(values = c(Road = '#e7298a', Urban = '#7570b3', Industrial = '#d95f02', Rural = '#1b9e77'),
+      scale_color_manual(values = c(Road = '#e7298a', Urban = '#7570b3', Industrial = '#d95f02', Rural = '#1b9e77', 'Unknown' = '#666666'),
                          guide = guide_legend(override.aes = list(alpha = 1, size = 3))) +
       facet_wrap(~site_type_grp, ncol = 4) +
       labs(title = parse(text = paste0('Annual~Mean~', OBS_VAR_PARAMS_LIST[[poll]][['lab_unit']])),
