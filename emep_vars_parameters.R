@@ -1032,7 +1032,7 @@ get_obs_var_params_list = function() {
        ox = list(poll_col = '#008b8b',
                  poll_fill = '#D1EEEE',
                  lab_unit = 'O[x]~(mu*g~m^-3)'),
-       ox(ppb) = list(poll_col = '#008b8b',
+       'ox(ppb)' = list(poll_col = '#008b8b',
                  poll_fill = '#D1EEEE',
                  lab_unit = 'O[x]~(ppb)'),
        nh3 = list(poll_col = '#e41a1c',
