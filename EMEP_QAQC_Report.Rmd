@@ -871,7 +871,7 @@ if (length(missing_mobs) == 0) {
 report_mobs_list = compact(report_mobs_list)
 
 if (OX_UNITS == 'ppb') {
-  OBSERVED_POLLS = str_replace(OBSERVED_POLLS, '^o3$', 'o3\\(ppb\\)')
+  OBSERVED_POLLS = str_replace(OBSERVED_POLLS, '^ox$', 'ox\\(ppb\\)')
 }
 
 for (i in seq_along(names(report_mobs_list))) {
