@@ -96,7 +96,7 @@ This task also calculates model evaluation statistics for the model run and save
 \
 
 #### PLOT_MOBS
-This task uses the collated modelled/observed datasets and produces time series plots for each site. Each site gets its own pdf document (name of the file is based on the station code) with daily means for the whole year and hourly means for each month. The plot parameters for standard pollutants ('no', 'no2', 'o3', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25') are set in **emep_vars_parameters.R**. For other pollutants the parameters need to be set before plotting.
+This task uses the collated modelled/observed datasets and produces time series plots for each site. Each site gets its own pdf document (name of the file is based on the station code) with daily means for the whole year and hourly means for each month. The plot parameters for standard pollutants ('no', 'no2', 'o3', 'ox', 'ox(ppb)', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25') are set in **emep_vars_parameters.R**. For other pollutants the parameters need to be set before plotting.
 \
 \
 In addition to the time series plots, scatter plots of modelled vs observed annual means per site type are plotted and saved in the Plots subdirectory.
@@ -134,6 +134,9 @@ PRETTY_LABS allows for properly formatted labels to be printed in the output. Th
 \
 \
 OBSERVED_POLLS - a vector of pollutant names for the model/observation data collation and plotting.
+\
+\
+OX_UNITS - select which units ox (o3 + no2) will be calculated and plotted for. Default is 'ppb', alternatively 'ug/m3'.
 \
 \
 PLOT_ALL_OBSERVED_POLLS - if set to TRUE it will print time series plots for all pollutants in the OBSERVED_POLLS vector whether the observation site measures them or not. I.e. only the modelled values will be printed for the pollutants without observations. 
