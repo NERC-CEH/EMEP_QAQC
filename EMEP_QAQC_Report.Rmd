@@ -845,6 +845,7 @@ cat('\n## Daily mean concentrations at selected sites\n\n')
 ```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
 
 plot_mobs_sites_map(sites_geo_map_sub)
+cat('\n\n\n')
 ```
 
 
