@@ -614,9 +614,9 @@ add_ox = function(site_dframe, df_format = c('long', 'wide'), units = 'ug/m3') {
       stop('Units for Ox calculation can either be "ppb" or "ug/m3"')
     }
     site_dframe = site_dframe %>%
-      filter(!pollutant %in% c('no2', 'o3')) %>%
       bind_rows(site_dframe_ox) %>% 
-      distinct()
+      distinct() %>%
+      arrange(date)
   } else {
 
   }
@@ -1043,7 +1043,7 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
   if (plot_all_polls == T) {
     n_polls = n_distinct(merged_df_long$pollutant)
     page_titles = rep(c(page_daily_title, page_hourly_title),
-                      each = n_polls %/% ppp + 1)
+                      each = (n_polls - 1) %/% ppp + 1)
     
     #sort pollutants so that they are plotted in order of polls in OBS_VAR_PARAMS_LIST 
     plot_polls = unique(merged_df_long$pollutant)
@@ -1058,7 +1058,7 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
     n_polls = length(measured_polls)
     
     page_titles = rep(c(page_daily_title, page_hourly_title),
-                      each = n_polls %/% ppp + 1)
+                      each = (n_polls - 1) %/% ppp + 1)
     sorted_measured_polls = measured_polls[order(match(measured_polls, names(OBS_VAR_PARAMS_LIST)))]
     base_poll_vector = c(sorted_measured_polls, rep(NA_character_, times = ppp * (n_polls %/% ppp + 1) - n_polls))
     

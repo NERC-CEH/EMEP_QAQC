@@ -845,6 +845,7 @@ cat('\n## Daily mean concentrations at selected sites\n\n')
 ```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
 
 plot_mobs_sites_map(sites_geo_map_sub)
+cat('\n\n\n')
 ```
 
 ```{r, mobs_report_plot_tseries, echo = FALSE, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0, fig.width = 10, fig.height = 18, results ='asis'}
@@ -856,13 +857,13 @@ if (is.null(names(mobs_list))) {
 report_mobs_list = mobs_list[MOBS_STATION_REPORT_TSERIES] 
 
 #check if all data available, print those missing
-missing_mobs = setdiff(names(report_mobs_list), MOBS_STATION_REPORT_TSERIES)
+missing_mobs = setdiff(MOBS_STATION_REPORT_TSERIES, names(report_mobs_list))
 if (length(missing_mobs) == 0) {
-  
-} else if (length(missing_mobs) == 0) {
-  cat(paste0('\nData for site ', missing_mobs, ' not collated.' ))
+  cat('\n', 'Data for all requested sites are available and shown below.', '\n')
+} else if (length(missing_mobs) == 1) {
+  cat('\n', paste0('Data for the requested site ', missing_mobs, ' not available.'), '\n')
 } else {
-  cat(paste0('\nData for sites ', str_replace(str_c(missing_mobs, collapse = ', '), '(.*),', '\\1 and'), ' not collated.'))
+  cat('\n', paste0('Data for the requested sites ', str_replace(str_c(missing_mobs, collapse = ', '), '(.*),', '\\1 and'), ' not available.'), '\n')
 }
 
 #remove NULL tibbles from plotting
