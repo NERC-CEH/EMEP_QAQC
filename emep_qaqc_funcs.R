@@ -1021,7 +1021,7 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
   site_meta = auto_sites_df %>% 
     filter(code == unique(merged_df_long$code))
   
-  fname_out = str_c(str_replace_all(site_meta$site, "[^[:alnum:]]", ""), site_meta$code,
+  fname_out = str_c(str_replace_all(textclean::replace_non_ascii(site_meta$site), "[^[:alnum:]]", ""), site_meta$code,
                     site_meta$site_type_grp, site_meta$year, sep = '_')
   #if only measured vars plotted add _p suffix to file name
   if (plot_all_polls == F) {
@@ -1030,11 +1030,11 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
   
   plot_pth_out = path(out_dir, fname_out, ext = 'pdf')
   
-  page_daily_title = str_c('Daily concentrations at ', site_meta$site, ' site (',
+  page_daily_title = str_c('Daily concentrations at ', textclean::replace_non_ascii(site_meta$site), ' site (',
                            site_meta$site_type_grp, ')\n in ', site_meta$year, sep = '')
   
-  page_hourly_title = map_chr(str_c(' ', month.name, ' '), ~str_c('Hourly concentrations at ', site_meta$site, ' site (',
-                                                                  site_meta$site_type_grp, ')\n in', .x, site_meta$year, sep = ''))
+  page_hourly_title = map_chr(str_c(' ', month.name, ' '), ~str_c('Hourly concentrations at ', textclean::replace_non_ascii(site_meta$site),
+                                                                  ' site (', site_meta$site_type_grp, ')\n in', .x, site_meta$year, sep = ''))
 
   #if run_title_info provided, add it to the page titles
   page_daily_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_daily_title)
