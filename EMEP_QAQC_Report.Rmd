@@ -66,17 +66,11 @@ future::plan(multicore)
 
 
 ```{r run info, echo = F}
-test_run_info = tryCatch(
-  error = function(cnd) NA_character_,
-  c(TEST_INNER_DIR, TEST_OUTER_DIR) %>% 
-    path_common()
-)
+test_run_info = c(na.omit(c(TEST_INNER_DIR, TEST_OUTER_DIR))) %>% 
+  path_common()
 
-ref_run_info = tryCatch(
-  error = function(cnd) NA_character_,
-  c(REF_INNER_DIR, REF_OUTER_DIR) %>% 
+ref_run_info = c(na.omit(c(REF_INNER_DIR, REF_OUTER_DIR))) %>% 
     path_common()
-)
 
 inner_domain = path_split(TEST_INNER_DIR) %>% 
   map_chr(last)
@@ -104,8 +98,6 @@ The report has been produced by **`r qaqc_user`**. All outputs have been saved i
 **Test Run Directory:** `r test_run_info`
 \
 **Reference Run Directory:** `r ref_run_info`
-\
-\
 ``` {asis, echo = !is.na(outer_domain), eval = TRUE}
 **Outer Domain:** `r outer_domain`
 ```
@@ -118,6 +110,7 @@ The report has been produced by **`r qaqc_user`**. All outputs have been saved i
 ``` {asis, echo = is.na(inner_domain), eval = TRUE}
 **Inner Domain:** Not submitted for this QA/QC
 ```
+
 
 `r if (!COMPARE_FILE_SIZE) {"\\begin{comment}"}`
 # File Size
@@ -147,36 +140,42 @@ fsize_tables = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR),
 `r if (!COMPARE_FILE_SIZE) {"\\end{comment}"}`
 
 ```{r Inventory_emission_check, eval = COMPARE_EMISSIONS}
-emiss_list0 = map(c(TEST_OUTER_DIR, TEST_INNER_DIR), safely(compare_inv_mod_emissions), emiss_inv_pth = EMISSION_INVENTORY_PTH) %>% 
-transpose()
 
-emiss_is_ok = emiss_list0$error %>% 
-  map_lgl(is_null)
+if (!is.na(EMISSION_INVENTORY_PTH)) {
+  emiss_list0 = map(c(TEST_OUTER_DIR, TEST_INNER_DIR), safely(compare_inv_mod_emissions), emiss_inv_pth = EMISSION_INVENTORY_PTH) %>%
+    transpose()
 
-emiss_list = emiss_list0$result[emiss_is_ok]
-
-if (length(emiss_list) > 0) {
+  emiss_is_ok = emiss_list0$error %>% 
+    map_lgl(is_null)
   
-  #determine the number of plots per page so that they fit on A4 paper
-  n_land = map_int(emiss_list, ~n_distinct(.x$Land))
-  ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L,
-                                   .x >= 11 && .x <= 20 ~ 2L,
-                                   .x > 20 ~ 1L))
+  emiss_list = emiss_list0$result[emiss_is_ok]
   
-  emiss_plot_list = map(emiss_list, plot_emiss_diff, threshold = EMISS_DIFF_THRESHOLD)
+  if (length(emiss_list) > 0) {
+    
+    #determine the number of plots per page so that they fit on A4 paper
+    n_land = map_int(emiss_list, ~n_distinct(.x$Land))
+    ppp = map_int(n_land, ~case_when(.x <=10 ~ 4L,
+                                     .x >= 11 && .x <= 20 ~ 2L,
+                                     .x > 20 ~ 1L))
+    
+    emiss_plot_list = map(emiss_list, plot_emiss_diff, threshold = EMISS_DIFF_THRESHOLD)
+    
+    page_titles = str_c(c(TEST_OUTER_DIR, TEST_INNER_DIR)[emiss_is_ok], '\n\n')
+    
+    emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
+                                marrangeGrob, ncol = 1)
+    out_pths = path(plots_pth_out, str_c(EMEP_domains[emiss_is_ok], '_', INV_MOD_EMISS_PLOT_FNAME))
+    
+    walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = 'a4', height = 10, width = 7))
+  }
   
-  page_titles = str_c(c(TEST_OUTER_DIR, TEST_INNER_DIR)[emiss_is_ok], '\n\n')
-  
-  emiss_plots_arranged = pmap(list(grobs = emiss_plot_list, nrow = ppp, top = page_titles),
-                              marrangeGrob, ncol = 1)
-  out_pths = path(plots_pth_out, str_c(EMEP_domains[emiss_is_ok], '_', INV_MOD_EMISS_PLOT_FNAME))
-  
-  walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = 'a4', height = 10, width = 7))
+} else {
+  emiss_exceedance_tbls = list(NULL, NULL)
 }
 
 ```
 
-```{r Inventory_check_report, eval = COMPARE_EMISSIONS}
+```{r Inventory_check_report, eval = COMPARE_EMISSIONS && !is.na(EMISSION_INVENTORY_PTH)}
 #filter only those over threshold
 
 emiss_exceedance_tbls = emiss_list0$result %>%
@@ -193,7 +192,7 @@ emiss_exceedance_tbls = emiss_list0$result %>%
 ###MassBudgetSummary.txt data
 MBS_list0 = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR), 
                 c(REF_OUTER_DIR, REF_INNER_DIR), 
-                safely(compare_run_emissions), save_file = F, mbs_table_fname = MBS_TABLE_FNAME) %>% 
+                safely(compare_run_emissions), save_file = T, mbs_table_fname = MBS_TABLE_FNAME) %>% 
   transpose()
 
 MBS_is_ok = MBS_list0$error %>% 
@@ -207,12 +206,17 @@ MBS_plot_captions = c(str_c('Test: ', path(TEST_OUTER_DIR, 'MassBudgetSummary.tx
                             'Ref: ', path(REF_INNER_DIR, 'MassBudgetSummary.txt'))) %>% 
   na.omit()
 
-MBS_plots = map(MBS_list, plot_MBS_diff, threshold = EMISS_DIFF_THRESHOLD) %>%
+if (length(MBS_list) > 0) {
+  MBS_plots = map(MBS_list, plot_MBS_diff, threshold = EMISS_DIFF_THRESHOLD) %>%
   map2(MBS_plot_captions, ~.x + labs(caption = .y) + theme(plot.caption = element_text(size = 6, face = 'italic') ))
 
 
-walk2(MBS_plots, path(plots_pth_out, str_c(na.omit(EMEP_domains), '_', MBS_PLOT_FNAME)),
-      ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
+  walk2(MBS_plots, path(plots_pth_out, str_c(na.omit(EMEP_domains), '_', MBS_PLOT_FNAME)),
+        ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
+} else {
+  MBS_exceedance_tbls = list(NULL,NULL)
+}
+
 ```
 
 ```{r MBS_check_report, eval = COMPARE_EMISSIONS}
@@ -229,28 +233,52 @@ MBS_exceedance_tbls = MBS_list0$result %>%
 
 `r if (!COMPARE_EMISSIONS) {"\\begin{comment}"}`
 # Emissions
+``` {asis, echo = COMPARE_EMISSIONS && is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
+An emission inventory file was not supplied therefore a comparison between model and inventory emissions is not available. 
+```
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
 ## `r outer_domain` Domain
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]]), eval = COMPARE_EMISSIONS}
-All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the EMEP emission inventory.
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
+All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]), eval = COMPARE_EMISSIONS}
-Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the EMEP emission inventory:
+
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
+Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 `r emiss_exceedance_tbls[[1]]`
+```
+
+
+``` {asis, echo = COMPARE_EMISSIONS && length(MBS_list) == 0, eval = COMPARE_EMISSIONS}
+A comparison between test and reference run emissions for the supplied runs is currently not available. 
+```
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS}
+All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the reference run.
+```
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS}
+Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
+`r MBS_exceedance_tbls[[1]]`
 ```
 
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
 ## `r inner_domain` Domain
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]), eval = COMPARE_EMISSIONS}
-All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the EMEP emission inventory.
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
+All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]), eval = COMPARE_EMISSIONS}
-Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the EMEP emission inventory:
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
+Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 `r emiss_exceedance_tbls[[2]]`
+```
+
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS}
+All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the reference run.
+```
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS}
+Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
+`r MBS_exceedance_tbls[[2]]`
 ```
 
 `r if (!COMPARE_EMISSIONS) {"\\end{comment}"}`
@@ -881,6 +909,7 @@ for (i in seq_along(names(report_mobs_list))) {
     st_drop_geometry() %>% 
     filter(code == station_code) %>% 
     pull(site) %>% 
+    textclean::replace_non_ascii() %>%
     str_c(station_code, ' (', ., ')', sep = '') %>% 
     str_replace_all('\\.', '') #the html headings don't like '.' in names
   
