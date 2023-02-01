@@ -568,7 +568,7 @@ sites_geo = sites_geo %>%
 
 #write meta data to files - rds for further use and csv for easier human check
 #check if Sites_used file already present and increase numbering if needed
-sites_used_files = dir_ls(data_pth_out, regexp = '(M|m)ites.*\\.rds')
+sites_used_files = dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds')
 if (length(sites_used_files) == 0) {
   write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
 } else {
