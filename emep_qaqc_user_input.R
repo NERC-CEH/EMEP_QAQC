@@ -41,8 +41,8 @@ REF_INNER_DIR = NA
 EMEP_BUDGET_DIR = c(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
                                                    #the test fname must be the first element of the vector
 
-BUDGET_MASK_FNAME = 'Area_masks/UK_landmask.gpkg'
-EMISSION_INVENTORY_PTH = 'Emission_Inventory_files/webdabEMEPNationalEmissions2000-2019.txt' #EMEP emissions
+BUDGET_MASK_FNAME = NA # gpks or shp files in Area_masks directory or own supplied
+EMISSION_INVENTORY_PTH = NA #choose one of the EMEP emissions files found in Emission_Inventory_files directory
 REF_MOBS_DIR = NA
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
