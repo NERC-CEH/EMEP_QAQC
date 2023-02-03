@@ -61,7 +61,10 @@ USERS = c(tomlis65 = 'Tomas Liska',
 #initiate chunk params (crashes without it)
 emiss_exceedance_tbls = list(NULL, NULL)
 MBS_list = list()
+<<<<<<< HEAD
 emiss_list = list()
+=======
+>>>>>>> a556fd75adfbc2a5c2114961a23b1985ef1dbeae
 MBS_exceedance_tbls = list(NULL,NULL)
 domain_dims = c(1,1)
 
@@ -248,7 +251,11 @@ A comparison between the supplied inventory file and the test run emissions is c
 ## `r outer_domain` Domain
 ```
 
+<<<<<<< HEAD
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0 , eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH)}
+=======
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH)}
+>>>>>>> a556fd75adfbc2a5c2114961a23b1985ef1dbeae
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
 
@@ -273,7 +280,11 @@ Emissions of the following species in the test run differ by more than `r EMISS_
 ## `r inner_domain` Domain
 ```
 
+<<<<<<< HEAD
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
+=======
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
+>>>>>>> a556fd75adfbc2a5c2114961a23b1985ef1dbeae
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
