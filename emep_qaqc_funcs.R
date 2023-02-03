@@ -1721,3 +1721,13 @@ format_MBS_table = function(MBS_dframe) {
     tab_options(data_row.padding = px(3),
                 table.align='left')
 }
+
+check_nrow = function(dframe) {
+  #if empty dframe return NULL
+  if (is.null(dframe)) {
+    return(NULL)
+  } else if (nrow(dframe) == 0) {
+    return(NULL)
+  }
+  dframe
+}
