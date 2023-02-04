@@ -910,6 +910,18 @@ if (OX_UNITS == 'ppb') {
   OBSERVED_POLLS = str_replace(OBSERVED_POLLS, '^ox$', 'ox\\(ppb\\)')
 }
 
+#check if all requested pollutants are available in the data, print those missing
+missing_polls = setdiff(OBSERVED_POLLS, pull(distinct(report_mobs_list[[1]], pollutant)))
+if (length(missing_polls) == 0) {
+  cat('\n', 'Data for all requested pollutants are available and shown below.', '\n')
+} else if (length(missing_polls) == 1) {
+  cat('\n', paste0('Data for the requested pollutant ', missing_polls, ' not available.'), '\n')
+} else {
+  cat('\n\n\n', paste0('Data for the requested pollutants ', str_replace(str_c(missing_polls, collapse = ', '), '(.*),', '\\1 and'), ' not available.'), '\n')
+}
+
+OBSERVED_POLLS = setdiff(OBSERVED_POLLS, missing_polls)
+
 for (i in seq_along(names(report_mobs_list))) {
   rep_mobs_data = report_mobs_list[[i]]
   station_code = names(report_mobs_list)[i]
@@ -922,9 +934,9 @@ for (i in seq_along(names(report_mobs_list))) {
     str_replace_all('\\.', '') #the html headings don't like '.' in names
   
   p_list = vector('list', length = length(OBSERVED_POLLS))
-  for (i in seq_along(OBSERVED_POLLS)) {
-    p_list[[i]] = rep_mobs_data %>%
-      filter(pollutant == OBSERVED_POLLS[i]) %>%
+  for (j in seq_along(OBSERVED_POLLS)) {
+    p_list[[j]] = rep_mobs_data %>%
+      filter(pollutant == OBSERVED_POLLS[j]) %>%
       plot_time_series2()
   }
   p_all = ggarrange(plotlist = p_list, ncol = 1) #%>% 
