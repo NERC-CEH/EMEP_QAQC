@@ -22,6 +22,7 @@ library(gridExtra)
 library(rnaturalearth)
 library(gt)
 library(leaflet)
+library(logger)
 source('emep_qaqc_user_input.R')
 source('myquicktext.R')
 source('emep_vars_parameters.R')
@@ -65,12 +66,20 @@ emiss_list = list()
 MBS_exceedance_tbls = list(NULL,NULL)
 domain_dims = c(1,1)
 
+#clean report_out_pth for new log and initiate new log file
+archive_log(logger_pth)
+log_appender(appender_file(logger_pth))
+
 #set for parallel processing
 future::plan(multicore)
 ```
 
 
 ```{r run info, echo = F}
+#log
+log_with_separator('Run Info Summary', separator = '-')
+log_layout(layout_glue)
+
 test_run_info = c(na.omit(c(TEST_INNER_DIR, TEST_OUTER_DIR))) %>% 
   path_common()
 
@@ -84,6 +93,20 @@ outer_domain = path_split(TEST_OUTER_DIR) %>%
 
 EMEP_domains = c(outer_domain, inner_domain)
 
+log_info('Test run directory: {test_run_info}')
+log_info('Reference run directory: {ref_run_info}')
+if (is.na(outer_domain)) {
+  log_warn('Outer domain not submitted for this QAQC')
+} else {
+  log_info('Outer domain: {outer_domain}')
+}
+
+if (is.na(inner_domain)) {
+  log_warn('Inner domain not submitted for this QAQC')
+} else {
+  log_info('Inner domain: {inner_domain}')
+}
+
 #determine author of the qaqc run
 qaqc_user = QAQC_DIR %>%
   path_split() %>% 
@@ -92,9 +115,13 @@ qaqc_user = QAQC_DIR %>%
   USERS[.]
 
 if (is.na(qaqc_user)) {
+  log_error('User not defined in USERS, please update USERS in EMEP_QAQC_Report.Rmd.')
   stop('User not defined in USERS, please update USERS in EMEP_QAQC_Report.Rmd.')
 }
-  
+
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
 ```
 The report has been produced by **`r qaqc_user`**. All outputs have been saved in **`r QAQC_DIR`.**
 
@@ -120,6 +147,10 @@ The report has been produced by **`r qaqc_user`**. All outputs have been saved i
 `r if (!COMPARE_FILE_SIZE) {"\\begin{comment}"}`
 # File Size
 ```{r file_size_check, eval = COMPARE_FILE_SIZE}
+
+log_layout(layout_glue)
+log_with_separator('COMPARE_FILE_SIZE task', separator = '-')
+
 fsize_tables = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR),
                 c(REF_OUTER_DIR, REF_INNER_DIR), 
                 safely(compare_file_size)) %>% 
@@ -142,16 +173,46 @@ fsize_tables = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR),
 ``` {asis, echo = !is.na(inner_domain) && COMPARE_FILE_SIZE, eval = !is.na(inner_domain) && COMPARE_FILE_SIZE}
 `r fsize_tables[[2]]`
 ```
+
+```{r, eval = COMPARE_FILE_SIZE}
+log_success('!!!COMPARE_FILE_SIZE task completed!!!')
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
+```
+
 `r if (!COMPARE_FILE_SIZE) {"\\end{comment}"}`
 
 ```{r Inventory_emission_check, eval = COMPARE_EMISSIONS}
+log_layout(layout_glue)
+log_with_separator('COMPARE_EMISSIONS task', separator = '-')
 
 if (!is.na(EMISSION_INVENTORY_PTH)) {
+  log_info('Emission inventory path: {path_abs(EMISSION_INVENTORY_PTH)}')
   emiss_list0 = map(c(TEST_OUTER_DIR, TEST_INNER_DIR), safely(compare_inv_mod_emissions), emiss_inv_pth = EMISSION_INVENTORY_PTH) %>%
     transpose()
 
   emiss_is_ok = emiss_list0$error %>% 
     map_lgl(is_null)
+  
+  #logger
+  if (!is.na(TEST_OUTER_DIR)) {
+    if (emiss_is_ok[1]) {
+      log_info('Model vs Inventory emission comparison for {outer_domain} domain SUCCESSFUL')
+    } else {
+      log_error('Model vs Inventory emission comparison for {outer_domain} domain FAILED' )
+      log_debug(emiss_list0$error[[1]])
+    }
+  }
+  
+  if (!is.na(TEST_INNER_DIR)) {
+    if (emiss_is_ok[2]) {
+      log_info('Model vs Inventory emission comparison for {inner_domain} domain SUCCESSFUL')
+    } else {
+      log_error('Model vs Inventory emission comparison for {inner_domain} domain FAILED' )
+      log_debug(emiss_list0$error[[2]])
+    }
+  }
   
   emiss_list = emiss_list0$result[emiss_is_ok]
   
@@ -173,6 +234,8 @@ if (!is.na(EMISSION_INVENTORY_PTH)) {
     
     walk2(emiss_plots_arranged, out_pths, ~ggsave(filename = .y, plot = .x,paper = 'a4', height = 10, width = 7))
     
+    log_info('Model vs Inventory emission check plots SAVED')
+    
   }
   
     #filter only those over threshold
@@ -187,6 +250,8 @@ if (!is.na(EMISSION_INVENTORY_PTH)) {
     map(safely(format_inv_table)) %>%
     transpose() %>% 
     .$result
+  } else {
+    log_warn('Emission inventory path: {EMISSION_INVENTORY_PTH}. Model vs Inventory emission check NOT POSSIBLE.')
   }
 
 ```
@@ -200,6 +265,25 @@ MBS_list0 = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR),
 
 MBS_is_ok = MBS_list0$error %>% 
   map_lgl(is_null)
+
+  #logger
+  if (!is.na(TEST_OUTER_DIR)) {
+    if (MBS_is_ok[1]) {
+      log_info('Test vs Reference run emission comparison for {outer_domain} domain SUCCESSFUL')
+    } else {
+      log_error('Test vs Reference run emission comparison for {outer_domain} domain FAILED' )
+      log_debug(MBS_list0$error[[1]])
+    }
+  }
+  
+  if (!is.na(TEST_INNER_DIR)) {
+    if (MBS_is_ok[2]) {
+      log_info('Test vs Reference run emission comparison for {inner_domain} domain SUCCESSFUL')
+    } else {
+      log_error('Test vs Reference run emission comparison for {inner_domain} domain FAILED' )
+      log_debug(MBS_list0$error[[2]])
+    }
+  }
 
 MBS_list = MBS_list0$result[MBS_is_ok]
 
@@ -216,6 +300,8 @@ if (length(MBS_list) > 0) {
 
   walk2(MBS_plots, path(plots_pth_out, str_c(na.omit(EMEP_domains), '_', MBS_PLOT_FNAME)),
         ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
+  
+  log_info('Test vs Reference run emission check plots SAVED')
   }
 
 ```
@@ -238,11 +324,11 @@ MBS_exceedance_tbls_fmted = MBS_exceedance_tbls %>%
 `r if (!COMPARE_EMISSIONS) {"\\begin{comment}"}`
 # Emissions
 ``` {asis, echo = COMPARE_EMISSIONS && is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
-An emission inventory file was not supplied therefore a comparison between model and inventory emissions is not available. 
+An emission inventory file not supplied. A comparison between model and inventory emissions is not available. 
 ```
 
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) == 0, eval = COMPARE_EMISSIONS}
-A comparison between the supplied inventory file and the test run emissions is currently not available. 
+A comparison between the supplied inventory file and the test run emissions is currently not possible. 
 ```
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
 ## `r outer_domain` Domain
@@ -255,6 +341,7 @@ All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supp
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 `r emiss_exceedance_tbls_fmted[[1]]`
+`r log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')`
 ```
 
 
@@ -267,6 +354,7 @@ All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the refe
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
 `r MBS_exceedance_tbls_fmted[[1]]`
+`r log_info('Test vs reference emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')`
 ```
 
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
@@ -279,6 +367,7 @@ All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supp
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 `r emiss_exceedance_tbls_fmted[[2]]`
+`r log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {inner_domain} domain printed in report')`
 ```
 
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0}
@@ -287,13 +376,23 @@ All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the refe
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
 `r MBS_exceedance_tbls_fmted[[2]]`
+`r log_info('Test vs reference emission differences exceeding the threshold for {inner_domain} domain printed in report')`
 ```
+```{r, eval = COMPARE_EMISSIONS}
+log_success('!!!COMPARE_EMISSIONS task completed!!!')
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
+```
+
 
 `r if (!COMPARE_EMISSIONS) {"\\end{comment}"}`
 
 `r if (!COMPARE_BUDGET_MSC) {"\\begin{comment}"}`
 # Budget & Mean Surface Concentrations (MSC)
 ```{r budget, eval = COMPARE_BUDGET_MSC, include=FALSE}
+log_layout(layout_glue)
+log_with_separator('COMPARE_BUDGET_MSC task', separator = '-')
 
 EMEP_BUDGET_FNAME = map_chr(EMEP_BUDGET_DIR, ~dir_ls(.) %>%
                               str_subset('fullrun'))
@@ -301,26 +400,38 @@ EMEP_BUDGET_FNAME = map_chr(EMEP_BUDGET_DIR, ~dir_ls(.) %>%
 emep_budget = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') %>% 
   load_emep_data(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, vars = .)
 
-if (!is.na(BUDGET_MASK_FNAME)) {
-  budget_mask = st_read(BUDGET_MASK_FNAME)
-} else {
-  budget_mask = NULL
-}
-
 #get test file modelled year to put into output filename
 mod_test_year = emep_budget[[1]] %>% 
   st_get_dimension_values('time') %>% 
   year()
 
-emep_budget2 = emep_budget %>% 
-  map(st_as_stars) %>% 
-  map(apply_area_mask, area_mask = budget_mask)
+if (!is.na(BUDGET_MASK_FNAME)) {
+  budget_mask = st_read(BUDGET_MASK_FNAME)
+  log_info('Budget mask path: {path_abs(BUDGET_MASK_FNAME)}')
+  
+  emep_budget2 = tryCatch(
+    error = function(cnd) {
+      emep_budget %>%
+        map(st_as_stars)
+      log_warn('FAILED to apply area mask. Budget calculated for the full modelling domain.')
+      log_debug(cnd)
+    },
+    emep_budget %>%
+      map(st_as_stars) %>% 
+      map(apply_area_mask, area_mask = budget_mask)
+  )
+} else {
+  emep_budget2 = emep_budget %>%
+    map(st_as_stars)
+  log_warn('Budget mask path: {BUDGET_MASK_FNAME}. Budget calculated for the full modelling domain.')
+}
 
 budget_df = map_dfr(emep_budget2, calc_budget, VAR_PARAMS_LIST, .id = 'run') %>% 
   arrange(Variable) %>% 
   mutate(run = str_replace(run, '_[^_]+$', '')) %>% #drop characters after the last underscore (e.g. 'fullrun.nc')
   write_csv(path(tables_pth_out, paste0(path_ext_remove(BUDGET_TABLE_FNAME), '_', mod_test_year,
                                         '.', path_ext(BUDGET_TABLE_FNAME))))
+log_info('Budget table SAVED')
 
 #plot the difference if comparing two budget files
 if (length(EMEP_BUDGET_FNAME) == 2) {
@@ -334,6 +445,7 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
 
   budget_plot = plot_budget_diff(budget_df2, threshold = BUDGET_DIFF_THRESHOLD)
   ggsave(path(plots_pth_out, BUDGET_PLOT_FNAME), height = 10, width = 7, type = 'cairo')
+  log_info('Budget difference plots SAVED')
   
   #for report
   v_tbl = categorise_emep_vars(budget_df2$Variable)
@@ -376,6 +488,7 @@ page_titles = format_maps_page_title(inner_test_pth = EMEP_BUDGET_FNAME[1], run_
 
 export = marrangeGrob(grobs = dsc_plots, nrow = 1, ncol = 1, top = substitute(page_titles[g]))
 ggsave(filename = path(maps_pth_out, DSC_MAPS_FNAME), export, paper = 'a4', height = 10, width = 7)
+log_info('Budget maps in pdf format SAVED')
 
 rm(dsc_plots, emep_budget2, export)
   
@@ -383,11 +496,14 @@ rm(dsc_plots, emep_budget2, export)
 
 ``` {asis, echo = !is.na(BUDGET_MASK_FNAME), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the area mask file **`r BUDGET_MASK_FNAME`** for the following EMEP variables:
+`r v_tbl2`
+`r log_info('Variables in Test vs Reference budget check printed in a table in the report'))`
 ```
 
 ``` {asis, echo = is.na(BUDGET_MASK_FNAME), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the full domain of the **`r EMEP_BUDGET_FNAME[1]`** file for the following EMEP variables:
 `r v_tbl2`
+`r log_info('Variables in Test vs Reference budget check printed in a table in the report')`
 ```
 
 ``` {asis, echo = COMPARE_BUDGET_MSC && nrow(budget_df3) == 0, eval = COMPARE_BUDGET_MSC}
@@ -397,13 +513,24 @@ The budget or MSC for all the above variables in the test run is within `r BUDGE
 ``` {asis, echo = COMPARE_BUDGET_MSC && !nrow(budget_df3) == 0, eval = COMPARE_BUDGET_MSC}
 The difference in budget (or MSC) between the test and reference runs is larger than `r BUDGET_DIFF_THRESHOLD`% for the following variables:
 `r budg_table`
+`r log_info('Variables in Test vs Reference budget check exceeding the {BUDGET_DIFF_THRESHOLD}% threshold printed in a table in the report')`
 ```
+
+```{r, eval = COMPARE_BUDGET_MSC}
+log_success('!!!COMPARE_BUDGET_MSC task completed!!!')
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
+```
+
 `r if (!COMPARE_BUDGET_MSC) {"\\end{comment}"}`
 
 `r if (!PLOT_COMPARISON_MAPS) {"\\begin{comment}"}`
 
 # Comparison Maps
 ```{r comparison_maps, eval = PLOT_COMPARISON_MAPS, include=FALSE}
+log_layout(layout_glue)
+log_with_separator('PLOT_COMPARISON_MAPS task', separator = '-')
 
 #collate emep_vars
 comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
@@ -423,8 +550,15 @@ null_vars = comp_map_vars[null_vars_lgl]
 
 comp_map_data = comp_map_data[!null_vars_lgl]
 
+if (length(comp_map_data) > 0) {
+  log_info('Data for comparison maps collated')
+} else {
+  log_error('Data for comparison maps FAILED to collate')
+}
+
 comp_plots_list = map(comp_map_data, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
   set_names(comp_map_vars[!null_vars_lgl])
+log_info('Comparison maps for {names(comp_plots_list)} created')
 
 page_titles = format_maps_page_title(outer_test_pth = select_file_from_dir(TEST_OUTER_DIR),
                                      outer_ref_pth = select_file_from_dir(REF_OUTER_DIR),
@@ -439,6 +573,8 @@ if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_DIR)))
   comp_plots_list_i = map(comp_map_data_i, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
     #add 'i' suffix to names to distinguish just inner domain plots
     set_names(str_c(comp_map_vars[!null_vars_lgl], 'i', sep = '_'))
+  
+  log_info('Comparison maps plotlist for {inner_domain} domain only created')
   
   page_titles_i = format_maps_page_title(outer_test_pth = NA,
                                      outer_ref_pth = NA,
@@ -459,6 +595,7 @@ domain_dims = pmap(list(which = c('x', 'y')), st_get_dimension_values, comp_map_
 
 export = marrangeGrob(grobs = comp_plots_list, nrow = 1, ncol = 1, top = substitute(page_titles[g]))
 ggsave(filename = path(maps_pth_out, COMP_MAPS_FNAME), export, paper = 'a4', height = 10, width = 7)
+log_info('Comparison maps for the above variables in pdf format SAVED')
 ```
 
 ```{r comparison_maps_report, eval = PLOT_COMPARISON_MAPS, include=FALSE}
@@ -485,10 +622,15 @@ comp_maps_vars_tbl2 = comp_maps_vars_tbl %>%
 #create plots for vars in COMP_MAP_VARS_REPORT
 report_map_vars = str_c(COMP_MAP_VARS_REPORT, collapse = '|')
 report_plots_list = comp_plots_list[str_detect(names(comp_plots_list), report_map_vars)]
+log_info('Comparison maps to be shown in the report created')
 
 #check if any vars in COMP_MAP_VARS_REPORT are not plotted (i.e. not present in the EMEP output) and 
 #remove from COMP_MAP_VARS_REPORT)
 report_plots_vars = COMP_MAP_VARS_REPORT[map_lgl(COMP_MAP_VARS_REPORT, ~any(str_detect(names(comp_plots_list), .x)))]
+
+if (length(setdiff(COMP_MAP_VARS_REPORT, report_plots_vars)) > 0) {
+  log_warn('Variable {setdiff(COMP_MAP_VARS_REPORT, report_plots_vars)} requested for the report not available')
+} 
 map_headings = names(report_plots_list) %>%
   str_replace('_i$', ' (inner domain)')
   
@@ -500,7 +642,8 @@ for (i in seq_along(report_plots_list)) {
 
 ``` {asis, echo = PLOT_COMPARISON_MAPS, eval = PLOT_COMPARISON_MAPS}
 Comparison maps have been plotted for the following variables:
-`r comp_maps_vars_tbl2` 
+`r comp_maps_vars_tbl2`
+`r log_info('A list of vars for which comparison maps have been created printed in a table in the report')`
 
 Maps for selected variables - *`r stringi::stri_replace_last_fixed(report_plots_vars, ', ', ' and ')`* - are shown below:
 ```
@@ -512,10 +655,20 @@ for (i in seq_along(report_plots_list)) {
   print(report_plots_list[[i]])
   cat('\n\n\n')
 }
+log_info('Comparison maps for requested vars plotted in the report')
+```
+
+```{r, eval = PLOT_COMPARISON_MAPS}
+log_success('!!!PLOT_COMPARISON_MAPS task completed!!!')
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
 ```
 `r if (!PLOT_COMPARISON_MAPS) {"\\end{comment}"}`
 
 ```{r collate_mobs, include = F, echo = F, eval = COLLATE_MOBS}
+log_layout(layout_glue)
+log_with_separator('COLLATE_MOBS task', separator = '-')
 
 #choose the inner domain run unless that's NA
 obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
@@ -549,6 +702,7 @@ custom_sites = read_rds(AUTO_NETWORK[file_exists(AUTO_NETWORK)]) %>%
 
 sites_geo = bind_rows(auto_sites, custom_sites) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs = 4326)
+log_info('Dataframe of obs sites (n = {nrow(sites_geo)}) created')
 
 #get a 2D slice of the EMEP output to check if all sites are in the modelled domain
 #loads quicker to check on the fullrun data
@@ -557,6 +711,11 @@ emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
   st_as_stars()
 
 sites_in = get_sites_in_domain(sites_geo, emep_slice)
+
+#log warning for sites outside the modelling domain
+if (length(setdiff(unique(sites_geo$code), sites_in)) > 0) {
+  log_warn('Site {setdiff(unique(sites_geo$code), sites_in)} is outside the model domain and will be ignored')
+}
 
 sites_geo = sites_geo %>%
   filter(code %in% sites_in) %>%
@@ -573,12 +732,14 @@ sites_geo = sites_geo %>%
   mutate(i = emep_indexes$row,
          j = emep_indexes$col,
          .before = poll_info)
+log_info('"i" and "j" indexes for obs sites extracted and added to the dataframe')
 
 #write meta data to files - rds for further use and csv for easier human check
 #check if Sites_used file already present and increase numbering if needed
 sites_used_files = dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds')
 if (length(sites_used_files) == 0) {
   write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
+  log_info("Obs sites written into {path(data_pth_out, '00Sites_used.rds')}")
 } else {
   n = sites_used_files %>%
     path_file() %>%
@@ -588,12 +749,14 @@ if (length(sites_used_files) == 0) {
   n_string = n %>%
     str_pad(2, side = 'left', pad = '0')
   write_rds(sites_geo, path(data_pth_out, paste0(n_string,'Sites_used.rds')))
+  log_info("Obs sites written into {path(data_pth_out, paste0(n_string,'Sites_used.rds'))}")
 }
 
 #create a dataframe for site-pollutant iteration (enables parallel processing using furrr)
 iter_df = cross_df(list(code = sites_geo$code, poll = names(mobs_polls))) %>%
   left_join(dplyr::select(sites_geo, code, network, i, j))
 
+log_info('Mobs collating started')
 #collate modelled and observed data to a list
 mobs_tlist = future_pmap(list(site_code = iter_df$code,
                               i_index = iter_df$i,
@@ -604,18 +767,20 @@ mobs_tlist = future_pmap(list(site_code = iter_df$code,
                          poll_name_lookup = mobs_polls,
                          .options = furrr_options(seed = T)) %>%
   transpose()
+log_info('Mobs collating finished')
 
 # and filter successful outcomes
 is_ok <- mobs_tlist$error %>%
   map_lgl(is_null)
 
+if (sum(is_ok) == 0) {
+  log_error('An ERROR occurred during mobs collation!')
+}
+
 #combine data per site
 mobs_list = mobs_tlist$result[is_ok] %>%
   bind_rows() %>%
   split(.$code)
-
-#output iterations ending in error
-print(iter_df[!is_ok, ])
 
 #convert to wide format for writing out to file (smaller file size)
 mobs_wide = mobs_list %>%
@@ -623,16 +788,19 @@ mobs_wide = mobs_list %>%
 
 mobs_data_pths = path(data_pth_out, paste0(names(mobs_list), '_mod_obs'), ext = 'rds')
 future_walk2(mobs_wide, mobs_data_pths, write_rds, .options = furrr_options(seed = T))
+log_info('Mobs rds files SAVED')
 
 #annual mean summary table
 
 if ('ox' %in% OBSERVED_POLLS) {
   mobs_list = mobs_list %>%
     future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
+  log_info('Ox in {OX_UNITS} added to the data')
 }
 
 a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
+log_info('Annual means calculated')
 mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
   mutate(site_type_grp = 'All')
 mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
@@ -640,12 +808,25 @@ mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant',
   arrange(pollutant) %>%
   relocate(site_type_grp, .after = pollutant)
 write_csv(mobs_stats, path(tables_pth_out, MOBS_STATS_FNAME))
+log_info('Mobs statistics SAVED')
 
 ```
+```{r, eval = COLLATE_MOBS}
+log_success('!!!COLLATE_MOBS task completed!!!')
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
+```
+
 
 `r if (!PLOT_MOBS) {"\\begin{comment}"}`
+```{r, eval = PLOT_MOBS}
+log_layout(layout_glue)
+log_with_separator('PLOT_MOBS task', separator = '-')
+```
 
 ```{r load_collated_mobs, include=FALSE, eval = PLOT_MOBS && !COLLATE_MOBS}
+log_info('Loading collated mobs data')
 #choose the inner domain run unless that's NA
 obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
 
@@ -660,6 +841,7 @@ emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
 #read saved meta data
 sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds) %>%
   distinct(code, .keep_all = T)
+log_info('MOBS site metadata loaded')
 
 #read saved mobs data
 mobs_pths = dir_ls(data_pth_out, regexp = '\\.rds') %>%
@@ -668,37 +850,44 @@ mobs_list = future_map(mobs_pths, read_rds, .options = furrr_options(seed = T)) 
   future_map(mobs_to_long, .options = furrr_options(seed = T)) %>%
   #temporary to ensure code column is never NA due to a previous bug
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
+log_info('MOBS data loaded')
 
 if ('ox' %in% OBSERVED_POLLS) {
   mobs_list = mobs_list %>%
     future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
+  log_info('Ox in {OX_UNITS} added to the data')
 }
 
 a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
+log_info('Annual means calculated')
 mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
   mutate(site_type_grp = 'All')
 mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
   bind_rows(mobs_stats_all, .) %>%
   arrange(pollutant) %>%
   relocate(site_type_grp, .after = pollutant)
+log_info('MOBS statistics calculated')
 ```
 
 ```{r plot_mobs, include=FALSE, eval = PLOT_MOBS}
 # #plot scatter plots of annual means (like for like - missing observations are dropped from modelled data too)
-mobs_plots = plot_annual_scatter(mobs_list = mobs_list, site_meta_df = sites_geo, poll_name_lookup = mobs_polls)
-mobs_plots = mobs_plots[order(match(mobs_plots, mobs_polls))]
+mobs_annual_scatter_plots = plot_annual_scatter(mobs_list = mobs_list, site_meta_df = sites_geo, poll_name_lookup = mobs_polls)
+mobs_annual_scatter_plots = mobs_annual_scatter_plots[order(match(mobs_annual_scatter_plots, mobs_polls))]
+log_info('MOBS annual scatter plots created')
 
 #get EMEP run fname for title on pdf plots
 run_info = format_maps_page_title(inner_test_pth = select_file_from_dir(obs_dir), run_labels = 'EMEP run')
 
-page_titles = rep(run_info, length(mobs_plots) %/% PPP + 1)
-export = marrangeGrob(grobs = mobs_plots, nrow = PPP , ncol = 1, top = substitute(page_titles[g]))
+page_titles = rep(run_info, length(mobs_annual_scatter_plots) %/% PPP + 1)
+export = marrangeGrob(grobs = mobs_annual_scatter_plots, nrow = PPP , ncol = 1, top = substitute(page_titles[g]))
 ggsave(filename = path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf'), export, paper = 'a4', height = 10, width = 7)
+log_info('MOBS annual scatter plots SAVED')
 
 #plot daily and hourly mobs per site
 future_walk(mobs_list, site_time_series_pdf3, sites_geo, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
             ppp = PPP, run_title_info = run_info, .options = furrr_options(seed = T))
+log_info('MOBS tseries plots in pdf format SAVED')
 ```
 
 # Observations
@@ -783,10 +972,11 @@ ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(see
   future_map(mobs_to_long, .options = furrr_options(seed = T)) %>%
   #temporary to ensure code column is never NA due to a previous bug
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
+log_info('Reference MOBS data loaded')
 
 ref_a_means = map_dfr(ref_mobs_list, summarise_mobs, avg_time = 'year') %>%
   left_join(st_drop_geometry(dplyr::select(ref_sites_geo, code, site_type_grp)))
-
+log_info('Reference MOBS annual means calculated')
 
 a_means2 = a_means %>% 
   filter(!is.na(obs)) %>% 
@@ -795,6 +985,7 @@ ref_a_means2 = ref_a_means %>%
   filter(!is.na(obs)) %>% 
   select(code, pollutant) 
 both = inner_join(a_means2, ref_a_means2)
+log_info('Test and ref MOBS annual means merged')
 
 a_means_sub = semi_join(a_means, both, by = c('code', 'pollutant'))
 ref_a_means_sub = semi_join(ref_a_means, both, by = c('code', 'pollutant'))
@@ -802,6 +993,7 @@ ref_a_means_sub = semi_join(ref_a_means, both, by = c('code', 'pollutant'))
 mobs_stats_all_sub = modStats(a_means_sub, statistic = MODSTATS_STATS, type = c('pollutant'))
 ref_mobs_stats_all_sub = modStats(ref_a_means_sub, statistic = MODSTATS_STATS, type = c('pollutant'))
 both_stats = left_join(mobs_stats_all_sub, ref_mobs_stats_all_sub, by = c('pollutant', 'n'), suffix = c('_test', '_ref'))
+log_info('Model evaluations stats for test and ref MOBS annual means calculated')
 if (nrow(both_stats) == 0) {
   mobs_stats_both_gtbl = NULL
 } else {
@@ -844,15 +1036,16 @@ if (nrow(both_stats) == 0) {
 ``` {asis, echo = PLOT_MOBS, eval = PLOT_MOBS}
 Hourly modelled concentrations have been compared with observations for the following species:
 `r mobs_vartbl`
+`r log_info('A link up table between OBS and EMEP var names printed in the report')`
 
-Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **00Sites_used.rds** in the **Data** subdirectory. The location of the sites is shown in the map below.
+Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **Sites_used.rds** in the **Data** subdirectory. The location of the sites is shown in the map below.
 ```
 
 ``` {r, echo = FALSE, eval = PLOT_MOBS, fig.width = 8.4}
 sites_geo = sites_geo %>%
   mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural', 'Unknown'), ordered = T))
 plot_mobs_sites_map(sites_geo)
-  
+log_info('Map of all MOBS sites printed in the report')
 ```
 
 ``` {asis, echo = PLOT_MOBS, eval = PLOT_MOBS}
@@ -860,14 +1053,14 @@ plot_mobs_sites_map(sites_geo)
 Model evaluation stats for all pollutants across all sites with data capture > 75% are shown in the table below.
 
 `r mobs_stats_all_gtbl`
-
+`r log_info('Table of model evaluation stats for the test run printed in the report')`
 ```
 
 ``` {asis, echo = PLOT_MOBS && !is.na(REF_MOBS_DIR) && !is.null(mobs_stats_both_gtbl), eval = PLOT_MOBS && !is.na(REF_MOBS_DIR) && !is.null(mobs_stats_both_gtbl)}
 The differences in model evaluation stats between the test and reference runs are shown in the table below. The difference has been calculated using only sites with > 75% data capture in both runs. The number of such sites is shown in column labelled 'n'.
 
 `r mobs_stats_both_gtbl`
-
+`r log_info('Table of model evaluation stats for the test and reference runs printed in the report')`
 ```
 
 ```{r mobs_report_selected_map, echo = FALSE, eval = PLOT_MOBS, results='asis'}
@@ -881,7 +1074,9 @@ cat('\n## Daily mean concentrations at selected sites\n\n')
 ```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
 
 plot_mobs_sites_map(sites_geo_map_sub)
+
 cat('\n\n\n')
+log_info('Map of selected MOBS sites printed in the report')
 ```
 
 
@@ -892,15 +1087,13 @@ if (is.null(names(mobs_list))) {
     map_chr(~pull(.x, code) %>% unique)
 }
 report_mobs_list = mobs_list[MOBS_STATION_REPORT_TSERIES] 
+log_info('MOBS data for selected sites extracted')
 
 #check if all data available, print those missing
 missing_mobs = setdiff(MOBS_STATION_REPORT_TSERIES, names(report_mobs_list))
-if (length(missing_mobs) == 0) {
-  cat('\n', 'Data for all requested sites are available and shown below.', '\n')
-} else if (length(missing_mobs) == 1) {
-  cat('\n', paste0('Data for the requested site ', missing_mobs, ' not available.'), '\n')
-} else {
-  cat('\n', paste0('Data for the requested sites ', str_replace(str_c(missing_mobs, collapse = ', '), '(.*),', '\\1 and'), ' not available.'), '\n')
+
+if (length(missing_mobs) > 0) {
+  log_warn('Data for the requested site {missing_mobs} not available. The site is ignored')
 }
 
 #remove NULL tibbles from plotting
@@ -913,11 +1106,7 @@ if (OX_UNITS == 'ppb') {
 #check if all requested pollutants are available in the data, print those missing
 missing_polls = setdiff(OBSERVED_POLLS, pull(distinct(report_mobs_list[[1]], pollutant)))
 if (length(missing_polls) == 0) {
-  cat('\n', 'Data for all requested pollutants are available and shown below.', '\n')
-} else if (length(missing_polls) == 1) {
-  cat('\n', paste0('Data for the requested pollutant ', missing_polls, ' not available.'), '\n')
-} else {
-  cat('\n\n\n', paste0('Data for the requested pollutants ', str_replace(str_c(missing_polls, collapse = ', '), '(.*),', '\\1 and'), ' not available.'), '\n')
+  log_warn('Data for the requested pollutant {missing_polls} not available. The pollutant is ignored')
 }
 
 OBSERVED_POLLS = setdiff(OBSERVED_POLLS, missing_polls)
@@ -945,7 +1134,18 @@ for (i in seq_along(names(report_mobs_list))) {
   print(p_all)
   cat('\n\n\n')
 }
+log_info('Daily MOBS means for selected sites plotted in the report')
+```
+
+```{r, eval = PLOT_MOBS}
+log_success('!!!PLOT_MOBS task completed!!!')
+log_layout(layout_blank)
+log_separator(separator = ' ')
+log_separator(separator = ' ')
 ```
 `r if (!PLOT_MOBS) {"\\end{comment}"}`
 
-
+```{r, eval = T}
+log_layout(layout_glue)
+log_with_separator('ALL REQUESTED TASKS COMPLETED AND REPORT PRINTED', separator = '-', level = SUCCESS)
+```

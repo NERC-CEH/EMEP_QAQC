@@ -1,5 +1,5 @@
 library(fs)
-
+library(logger)
 # projection defs ---------------------------------------------------------
 ### projection definitions used in EMEP
 
@@ -60,6 +60,7 @@ QAQC_DIR = TEST_INNER_DIR
 ### provide filenames for qaqc output
 
 REPORT_FNAME = 'QAQC_Report.html'                    # name of the published report (must be .html)
+LOGGER_FNAME = 'default'                             #name of the logger file; default is REPORT_FNAME.log
 BUDGET_TABLE_FNAME = 'Budget_table.csv'              # deposition and surf conc summary (DSC)
 BUDGET_PLOT_FNAME = 'Budget_diff.png'                 # budget_table plotted if exactly 2 runs are being compared
 DSC_MAPS_FNAME = 'DSC_maps.pdf'                      # DSC maps pdf
@@ -146,3 +147,8 @@ maps_pth_out = dir_create(path(qaqc_pth_out, 'Maps'))
 plots_pth_out = dir_create(path(qaqc_pth_out, 'Plots'))
 tables_pth_out = dir_create(path(qaqc_pth_out, 'Tables'))
 data_pth_out = dir_create(path(qaqc_pth_out, 'Data'))
+
+#logger
+logger_pth = ifelse(LOGGER_FNAME == 'default',
+                      path(report_pth_out, path_ext_remove(REPORT_FNAME), ext = 'log'),
+                      path(report_oth_out, LOGGER_FNAME))

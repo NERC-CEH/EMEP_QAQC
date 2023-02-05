@@ -270,7 +270,8 @@ collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_ind
              pollutant = !!pollutant) %>%
       relocate(mod, .after = obs)
   } else {
-    print(paste0('No data for ', pollutant, ' at ', site_code, ' (', network, ')')) #keep track of what's missing
+    log_warn('No data for {pollutant} at {site_code}')
+    #print(paste0('No data for ', pollutant, ' at ', site_code, ' (', network, ')')) #keep track of what's missing
     both = mod_data %>%
       mutate(code = !!site_code,
              pollutant = !!pollutant,
@@ -1730,4 +1731,28 @@ check_nrow = function(dframe) {
     return(NULL)
   }
   dframe
+}
+
+archive_log = function(log_pth) {
+  #moves superseeded log files into 'Log_archive' directory
+  #automatically numbers old files to prevent overwriting (up to 99 log files)
+  archive_dir = path_dir(log_pth) %>% 
+    path('Log_archive') %>% 
+    dir_create()
+  
+  old_log_files = dir_ls(archive_dir)
+  if(file_exists(log_pth)) {
+    if (length(old_log_files) == 0) {
+      file_move(log_pth, path(archive_dir, paste0('00', path_file(log_pth))))
+    } else {
+      n = old_log_files %>%
+        path_file() %>%
+        str_extract('\\d*') %>%
+        as.integer() %>%
+        max(na.rm = T) + 1
+      n_string = n %>%
+        str_pad(2, side = 'left', pad = '0')
+      file_move(log_pth, path(archive_dir, paste0(n_string,path_file(log_pth))))
+    }
+  }
 }
