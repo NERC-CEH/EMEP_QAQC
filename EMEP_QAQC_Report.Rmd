@@ -41,6 +41,7 @@ gt_var_labeller = c(no = 'NO',
                     no2 = 'NO[2]',
                     o3 = 'O[3]',
                     ox = 'O[x]',
+                    `ox(ppb)` = 'O[x] (ppb)',
                     nox = 'NO[x]',
                     nh3 = 'NH[3]',
                     pm10 = 'PM[10]',
@@ -497,7 +498,7 @@ rm(dsc_plots, emep_budget2, export)
 ``` {asis, echo = !is.na(BUDGET_MASK_FNAME), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the area mask file **`r BUDGET_MASK_FNAME`** for the following EMEP variables:
 `r v_tbl2`
-`r log_info('Variables in Test vs Reference budget check printed in a table in the report'))`
+`r log_info('Variables in Test vs Reference budget check printed in a table in the report')`
 ```
 
 ``` {asis, echo = is.na(BUDGET_MASK_FNAME), eval = COMPARE_BUDGET_MSC}
