@@ -65,6 +65,8 @@ emiss_exceedance_tbls = list(NULL, NULL)
 MBS_list = list()
 emiss_list = list()
 MBS_exceedance_tbls = list(NULL,NULL)
+v_tbl2 = NULL
+budget_exceed_tbl = tibble()
 domain_dims = c(1,1)
 
 #clean report_out_pth for new log and initiate new log file
@@ -461,11 +463,11 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
                 #table.font.size = pct(95),
                 table.align='left')
   
-  budget_df3 = budget_df2 %>% 
+  budget_exceed_tbl = budget_df2 %>% 
     filter(rel_diff > BUDGET_DIFF_THRESHOLD)
   
-  if (nrow(budget_df3 != 0)) {
-    budg_table = budget_df3 %>%
+  if (nrow(budget_exceed_tbl != 0)) {
+    budget_exceed_tbl = budget_exceed_tbl %>%
       select(Variable, rel_diff) %>%
       gt() %>% 
       tab_style(style = list(cell_text(color = 'red')),
@@ -495,25 +497,25 @@ rm(dsc_plots, emep_budget2, export)
   
 ```
 
-``` {asis, echo = !is.na(BUDGET_MASK_FNAME), eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = !is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the area mask file **`r BUDGET_MASK_FNAME`** for the following EMEP variables:
 `r v_tbl2`
 `r log_info('Variables in Test vs Reference budget check printed in a table in the report')`
 ```
 
-``` {asis, echo = is.na(BUDGET_MASK_FNAME), eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the full domain of the **`r EMEP_BUDGET_FNAME[1]`** file for the following EMEP variables:
 `r v_tbl2`
 `r log_info('Variables in Test vs Reference budget check printed in a table in the report')`
 ```
 
-``` {asis, echo = COMPARE_BUDGET_MSC && nrow(budget_df3) == 0, eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = COMPARE_BUDGET_MSC && !is.null(v_tbl2) && nrow(budget_exceed_tbl) == 0, eval = COMPARE_BUDGET_MSC}
 The budget or MSC for all the above variables in the test run is within `r BUDGET_DIFF_THRESHOLD`% of the corresponding values in the reference run.
 ```
 
-``` {asis, echo = COMPARE_BUDGET_MSC && !nrow(budget_df3) == 0, eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = COMPARE_BUDGET_MSC && !is.null(v_tbl2) && !nrow(budget_exceed_tbl) == 0, eval = COMPARE_BUDGET_MSC}
 The difference in budget (or MSC) between the test and reference runs is larger than `r BUDGET_DIFF_THRESHOLD`% for the following variables:
-`r budg_table`
+`r budget_exceed_tbl`
 `r log_info('Variables in Test vs Reference budget check exceeding the {BUDGET_DIFF_THRESHOLD}% threshold printed in a table in the report')`
 ```
 
