@@ -535,16 +535,30 @@ log_separator(separator = ' ')
 log_layout(layout_glue)
 log_with_separator('PLOT_COMPARISON_MAPS task', separator = '-')
 
+if (FULLRUN_OUTER_TRIMMED == T) {
+  log_warn('Trimmed outer run fullrun file used!')
+  outer_file_tag = 'fulltrimmed'
+} else {
+  outer_file_tag = 'fullrun'
+}
+
+if (FULLRUN_INNER_TRIMMED == T) {
+  log_warn('Trimmed inner run fullrun file used!')
+  inner_file_tag = 'fulltrimmed'
+} else {
+  inner_file_tag = 'fullrun'
+}
+
 #collate emep_vars
 comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
 
 
 comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x,
                                                                   run_labels = RUN_LABELS,
-                                                                  outer_test_fname = select_file_from_dir(TEST_OUTER_DIR),
-                                                                  outer_ref_fname = select_file_from_dir(REF_OUTER_DIR),
-                                                                  inner_test_fname = select_file_from_dir(TEST_INNER_DIR),
-                                                                  inner_ref_fname = select_file_from_dir(REF_INNER_DIR),
+                                                                  outer_test_fname = select_file_from_dir(TEST_OUTER_DIR, fname = outer_file_tag),
+                                                                  outer_ref_fname = select_file_from_dir(REF_OUTER_DIR, fname = outer_file_tag),
+                                                                  inner_test_fname = select_file_from_dir(TEST_INNER_DIR, fname = inner_file_tag),
+                                                                  inner_ref_fname = select_file_from_dir(REF_INNER_DIR, fname = inner_file_tag),
                                                                   test_crs = TEST_CRS, ref_crs = REF_CRS ), .options = furrr_options(seed = T))
 
 null_vars_lgl = comp_map_data %>% 
@@ -563,10 +577,10 @@ comp_plots_list = map(comp_map_data, plot_comp_maps, ncl_palette_dir = PALETTE_D
   set_names(comp_map_vars[!null_vars_lgl])
 log_info('Comparison maps for {names(comp_plots_list)} created')
 
-page_titles = format_maps_page_title(outer_test_pth = select_file_from_dir(TEST_OUTER_DIR),
-                                     outer_ref_pth = select_file_from_dir(REF_OUTER_DIR),
-                                     inner_test_pth = select_file_from_dir(TEST_INNER_DIR),
-                                     inner_ref_pth = select_file_from_dir(REF_INNER_DIR),
+page_titles = format_maps_page_title(outer_test_pth = select_file_from_dir(TEST_OUTER_DIR, fname = outer_file_tag),
+                                     outer_ref_pth = select_file_from_dir(REF_OUTER_DIR, fname = outer_file_tag),
+                                     inner_test_pth = select_file_from_dir(TEST_INNER_DIR, fname = inner_file_tag),
+                                     inner_ref_pth = select_file_from_dir(REF_INNER_DIR, fname = inner_file_tag),
                                      run_labels = str_c(RUN_LABELS, ' run')) %>%
   rep(length(comp_plots_list))
 
@@ -581,8 +595,8 @@ if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_DIR)))
   
   page_titles_i = format_maps_page_title(outer_test_pth = NA,
                                      outer_ref_pth = NA,
-                                     inner_test_pth = select_file_from_dir(TEST_INNER_DIR),
-                                     inner_ref_pth = select_file_from_dir(REF_INNER_DIR),
+                                     inner_test_pth = select_file_from_dir(TEST_INNER_DIR, fname = inner_file_tag),
+                                     inner_ref_pth = select_file_from_dir(REF_INNER_DIR, fname = inner_file_tag),
                                      run_labels = str_c(RUN_LABELS, ' run')) %>%
   rep(length(comp_plots_list_i))
   #sort plots so that they show outer+inner followed by inner only for each var

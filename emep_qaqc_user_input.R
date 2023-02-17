@@ -38,6 +38,9 @@ TEST_INNER_DIR = NA
 REF_OUTER_DIR = NA
 REF_INNER_DIR = NA
 
+FULLRUN_OUTER_TRIMMED = F                          #set to T if fullrun output has been trimmed to match reference run domain
+FULLRUN_INNER_TRIMMED = F
+
 EMEP_BUDGET_DIR = c(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
                                                    #the test fname must be the first element of the vector
 
