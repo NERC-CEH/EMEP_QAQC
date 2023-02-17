@@ -815,7 +815,8 @@ if ('ox' %in% OBSERVED_POLLS) {
   log_info('Ox in {OX_UNITS} added to the data')
 }
 
-a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', .options = furrr_options(seed = T)) %>%
+a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                         .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
 log_info('Annual means calculated')
 mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
@@ -875,7 +876,8 @@ if ('ox' %in% OBSERVED_POLLS) {
   log_info('Ox in {OX_UNITS} added to the data')
 }
 
-a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', .options = furrr_options(seed = T)) %>%
+a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                         .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
 log_info('Annual means calculated')
 mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
@@ -991,7 +993,8 @@ ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(see
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 log_info('Reference MOBS data loaded')
 
-ref_a_means = map_dfr(ref_mobs_list, summarise_mobs, avg_time = 'year') %>%
+ref_a_means = future_map_dfr(ref_mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                             .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(ref_sites_geo, code, site_type_grp)))
 log_info('Reference MOBS annual means calculated')
 

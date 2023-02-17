@@ -86,6 +86,7 @@ PRETTY_LABS = F                                                    # properly fo
 
 EMISS_DIFF_THRESHOLD = 5       # flag emission differences over this percentage
 BUDGET_DIFF_THRESHOLD = 5      # flag budget differences over this percentage
+MOBS_THRESHOLD = 75            # mobs stats calculated for sites with data capture >= MOBS_THRESHOLD 
 
 BUDGET_VARS = 'all'            # variables for budget calculations and DSC plotting 
 COMP_MAP_VARS = 'all'          # variables for comparison maps
