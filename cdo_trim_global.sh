@@ -22,8 +22,8 @@ infile=$1
 
 # > adapt grid of fullrun
 # use "cdo selindexbox,idx1,idx2,idy1,idy2 infile outfile"
-echo ">> cdo -z zip selindexbox,1,360,2,179 ${infile} ${infile/.nc/_trimmed.nc}"
-cdo -z zip selindexbox,1,360,2,179 ${infile} ${infile/.nc/_trimmed.nc}
+echo ">> cdo -z zip selindexbox,1,360,2,179 ${infile} ${infile/fullrun.nc/fulltrimmed.nc}"
+cdo -z zip selindexbox,1,360,2,179 ${infile} ${infile/fullrun.nc/fulltrimmed.nc}
 
 echo ""
 echo "Inpath was: $(dirname ${infile})"
