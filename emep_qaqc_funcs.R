@@ -1467,14 +1467,14 @@ extract_domain_from_fpath = function(fpath) {
   domain
 }
 
-select_file_from_dir = function(EMEP_dir, f_name = 'fullrun') {
+select_file_from_dir = function(EMEP_dir, fname = 'fullrun') {
   #safely extract file name from directory (for comp maps calculations)
   #returns NA if EMEP_dir is NA without crashing
   if(is.na(EMEP_dir)) {
     out = NA
   } else {
     out = dir_ls(EMEP_dir) %>% 
-      str_subset(f_name)
+      str_subset(fname)
   }
   out
 }
