@@ -467,7 +467,7 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
     filter(rel_diff > BUDGET_DIFF_THRESHOLD)
   
   if (nrow(budget_exceed_tbl != 0)) {
-    budget_exceed_tbl = budget_exceed_tbl %>%
+    budget_exceed_tbl2 = budget_exceed_tbl %>%
       select(Variable, rel_diff) %>%
       gt() %>% 
       tab_style(style = list(cell_text(color = 'red')),
@@ -515,7 +515,7 @@ The budget or MSC for all the above variables in the test run is within `r BUDGE
 
 ``` {asis, echo = COMPARE_BUDGET_MSC && !is.null(v_tbl2) && !nrow(budget_exceed_tbl) == 0, eval = COMPARE_BUDGET_MSC}
 The difference in budget (or MSC) between the test and reference runs is larger than `r BUDGET_DIFF_THRESHOLD`% for the following variables:
-`r budget_exceed_tbl`
+`r budget_exceed_tbl2`
 `r log_info('Variables in Test vs Reference budget check exceeding the {BUDGET_DIFF_THRESHOLD}% threshold printed in a table in the report')`
 ```
 
