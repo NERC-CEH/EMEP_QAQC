@@ -950,8 +950,6 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
     geom_line(data = filter(df2, scenario == 'mod'),
               aes(date, conc, color = scenario), size = 0.3) +
     scale_x_datetime(date_breaks = date_breaks, date_labels = date_labels, expand = expansion(c(0,0))) +
-    scale_y_continuous(labels = function(x) {str_pad(x, width = 4, side = 'left', pad = ' ')},
-                       expand = expansion(mult = c(0, 0.15), add = c(0, 0))) +
     scale_color_manual(values = c(mod = unname(OBS_VAR_PARAMS_LIST[[poll]][['poll_col']])),
                        labels = c(mod = 'Modelled'), guide = guide_legend(override.aes = list(size = .75))) +
     labs(x = NULL,
@@ -979,8 +977,26 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
       theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
             plot.caption = element_text(size = 8))
     
+    modelled_min = df2 %>% 
+      filter(scenario == 'mod') %>% 
+      summarise(mod_min = min(conc, na.rm = T)) %>% 
+      pull()
+    
+    if (modelled_min > 0) {
+      p = p +
+        scale_y_continuous(labels = function(x) {str_pad(x, width = 4, side = 'left', pad = ' ')},
+                           expand = expansion(mult = c(0, 0.15), add = c(0, 0)),
+                           limits = c(0, NA))
+    } else {
+      p = p +
+        scale_y_continuous(labels = function(x) {str_pad(x, width = 4, side = 'left', pad = ' ')},
+                           expand = expansion(mult = c(0, 0.15), add = c(0, 0)))
+    }
+    
   } else {
     p = p +
+      scale_y_continuous(labels = function(x) {str_pad(x, width = 4, side = 'left', pad = ' ')},
+                         expand = expansion(mult = c(0, 0.15), add = c(0, 0))) +
       labs(caption = 'No observations during the period shown.') +
       theme(plot.caption = element_text(color = 'transparent',
                                         size = 8))
