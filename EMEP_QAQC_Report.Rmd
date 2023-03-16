@@ -58,7 +58,8 @@ USERS = c(tomlis65 = 'Tomas Liska',
           jansch = 'Janice Scheffler',
           yuawan = 'Yuanlin Wang',
           racbec = 'Rachel Beck',
-          liqyao = 'Liquan Yao')
+          liqyao = 'Liquan Yao',
+          damtan = 'Damaris Tan')
 
 #initiate chunk params (crashes without it)
 emiss_exceedance_tbls = list(NULL, NULL)
@@ -447,8 +448,12 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
            rel_diff = abs_diff/ref*100)
 
   budget_plot = plot_budget_diff(budget_df2, threshold = BUDGET_DIFF_THRESHOLD)
-  ggsave(path(plots_pth_out, BUDGET_PLOT_FNAME), height = 10, width = 7, type = 'cairo')
-  log_info('Budget difference plots SAVED')
+  if (is.null(budget_plot)) {
+    log_info('Budgets for both runs are identical. Budget difference plots not produced.')
+  } else {
+    ggsave(path(plots_pth_out, BUDGET_PLOT_FNAME), height = 10, width = 7, type = 'cairo')
+    log_info('Budget difference plots SAVED')
+  }
   
   #for report
   v_tbl = categorise_emep_vars(budget_df2$Variable)

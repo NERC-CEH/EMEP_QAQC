@@ -1202,57 +1202,62 @@ plot_budget_diff = function(budget_dframe, threshold = 5) {
     filter(abs_diff != 0) %>% 
     select(-test, -ref)
   
-  budget2 = budget %>% 
-    pivot_longer(cols = -Variable:-Unit, names_to = 'diff', values_to = 'value') %>% 
-    mutate(diff = str_replace(diff, '_diff', '')) 
-
-  
-  plot_list = vector('list', 2)
-  n = vector('integer', 2)
-  budget_stats = c('Total', 'Mean')
-  for (i in seq_along(budget_stats)) {
-    budget2_sub = budget2 %>% 
-      filter(Stat == budget_stats[i])
-    n[[i]] = nrow(budget2_sub)
+  if (nrow(budget) == 0) {
+    return(NULL)
+  } else {
+    budget2 = budget %>% 
+      pivot_longer(cols = -Variable:-Unit, names_to = 'diff', values_to = 'value') %>% 
+      mutate(diff = str_replace(diff, '_diff', '')) 
     
-    if (budget_stats[i] == 'Total') {
-      budget_strip = c(abs = paste0('"Test - Reference"', ' ~(Gg~yr^-1)'), rel = paste0('"Test - Reference (%)"'))
-    } else {
-      budget_strip = c(abs = paste0('"Test - Reference"', '~(mu*g~m^-3)'), rel = paste0('"Test - Reference (%)"'))
+    
+    plot_list = vector('list', 2)
+    n = vector('integer', 2)
+    budget_stats = c('Total', 'Mean')
+    for (i in seq_along(budget_stats)) {
+      budget2_sub = budget2 %>% 
+        filter(Stat == budget_stats[i])
+      n[[i]] = nrow(budget2_sub)
+      
+      if (budget_stats[i] == 'Total') {
+        budget_strip = c(abs = paste0('"Test - Reference"', ' ~(Gg~yr^-1)'), rel = paste0('"Test - Reference (%)"'))
+      } else {
+        budget_strip = c(abs = paste0('"Test - Reference"', '~(mu*g~m^-3)'), rel = paste0('"Test - Reference (%)"'))
+      }
+      
+      p1 = ggplot(budget2_sub) +
+        geom_hline(yintercept = 0, color = 'black', size = 0.2) +
+        geom_bar(aes(Variable, value), fill = '#d8b365', color = 'black', size = 0.1,
+                 stat = 'identity', position = 'dodge', width = 0.8) +
+        geom_rect(data = (filter(budget2_sub, diff == 'rel') %>% slice(1)),
+                  aes(xmin = -Inf, xmax = Inf, ymin = -threshold, ymax = threshold), fill = 'red', alpha = 0.2) +
+        facet_wrap(~diff, scales = 'free_x', labeller = as_labeller(budget_strip, default = label_parsed)) +
+        labs(x = NULL,
+             y = NULL) + 
+        coord_flip() +
+        theme_bw() +
+        theme(strip.background = element_rect(fill = 'gray50'),
+              strip.text = element_text(size = 10, color = 'black', face = 'bold'),
+              panel.grid.major = element_line(size = 0.1),
+              axis.text = element_text(size = 8),
+              legend.position = 'none')
+      
+      plot_list[[i]] = p1
     }
     
-    p1 = ggplot(budget2_sub) +
-      geom_hline(yintercept = 0, color = 'black', size = 0.2) +
-      geom_bar(aes(Variable, value), fill = '#d8b365', color = 'black', size = 0.1,
-               stat = 'identity', position = 'dodge', width = 0.8) +
-      geom_rect(data = (filter(budget2_sub, diff == 'rel') %>% slice(1)),
-                aes(xmin = -Inf, xmax = Inf, ymin = -threshold, ymax = threshold), fill = 'red', alpha = 0.2) +
-      facet_wrap(~diff, scales = 'free_x', labeller = as_labeller(budget_strip, default = label_parsed)) +
-      labs(x = NULL,
-           y = NULL) + 
-      coord_flip() +
-      theme_bw() +
-      theme(strip.background = element_rect(fill = 'gray50'),
-            strip.text = element_text(size = 10, color = 'black', face = 'bold'),
-            panel.grid.major = element_line(size = 0.1),
-            axis.text = element_text(size = 8),
-            legend.position = 'none')
+    # attempt to make bars similar width
+    n_ratio = n[1]/n[2] 
+    n_factor = case_when(n_ratio <= 0.4 ~ 1.25,
+                         n_ratio <= 0.7 ~ 1.1,
+                         n_ratio <= 0.95 ~ 1.05,
+                         n_ratio <= 1.05 ~ 1,
+                         n_ratio <= 1.3 ~ 0.9)
     
-    plot_list[[i]] = p1
+    budget_plot = ggarrange(plotlist = plot_list, nrow = 2, heights = c(n[1] * n_factor, n[2]),
+                            align = 'v')
+    
+    budget_plot
   }
   
-  # attempt to make bars similar width
-  n_ratio = n[1]/n[2] 
-  n_factor = case_when(n_ratio <= 0.4 ~ 1.25,
-                       n_ratio <= 0.7 ~ 1.1,
-                       n_ratio <= 0.95 ~ 1.05,
-                       n_ratio <= 1.05 ~ 1,
-                       n_ratio <= 1.3 ~ 0.9)
-  
-  budget_plot = ggarrange(plotlist = plot_list, nrow = 2, heights = c(n[1] * n_factor, n[2]),
-                          align = 'v')
-  
-  budget_plot
 }
 
 
