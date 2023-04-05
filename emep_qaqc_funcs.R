@@ -256,7 +256,7 @@ collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_ind
       error = function(cnd) NULL,
       
       get_auto_data(site = site_code, network = network, pollutant = str_to_lower(pollutant),
-                    start_year = nc_year, end_year = nc_year, to_narrow = T) %>%
+                    start_year = min(nc_year), end_year = max(nc_year), to_narrow = T) %>%
         select(-code) %>% 
         rename(obs = conc)
     )
