@@ -1,0 +1,200 @@
+---
+title: "EMEP4UK - uEMEP Annual Concentration Maps (2018)"
+output:
+  rmdformats::readthedown:
+    toc_depth: 3
+    fig_width: 10
+    fig_height: 12
+---
+
+```{r setup, include=FALSE, echo = F}
+library(knitr)
+library(tidyverse)
+library(fs)
+library(sf)
+library(lubridate)
+library(stars)
+library(ncdf4)
+library(ncdf4.helpers)
+library(openair)
+library(gt)
+library(leaflet)
+library(leaflet.providers)
+library(leafem)
+leaflet()
+
+source('emep_vars_parameters.R')
+source('emep_qaqc_funcs.R')
+#source('../EMEP_QAQC/emep_qaqc_funcs.R')
+#source('../EMEP_QAQC/emep_vars_parameters.R')
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = 'center')
+knit_engines$set(asis = function(options) {
+  if (options$echo && options$eval) knit_child(text = options$code)
+})
+
+VAR_PARAMS_LIST = get_params_list() # list of parameters for each EMEP var 
+OBS_VAR_PARAMS_LIST = get_obs_var_params_list() # list of plotting params for EMEP vars used in obs-mod comparison
+
+f250m = '../uEMEP/output/UK_annual_RPIG250_merged.nc'
+f3km = '../uEMEP/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_LF5_annual_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
+f50km = '../uEMEP/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_EU_2018_fullrun.nc'
+uk = read_sf('UK_geo_data/UK_countries.gpkg')
+
+# f50m = '/home/tomlis65/uEMEP/Runs/UK_annual_RPIG50/UK_annual_RPIG50_merged.nc'
+# f250m = '/home/tomlis65/uEMEP/Runs/UK_annual_RPIG250/UK_annual_RPIG250_merged.nc'
+# f3km = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/LF5_annual/2018/UK_3Km/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_LF5_annual_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
+#uk = read_sf('UK_geo_data/UK_countries.gpkg')
+
+leaflet_labs = c(no2 = 'NO<sub>2</sub> (&#181;g m<sup>-3</sup>)',
+                 #nox = 'NO<sub>x</sub> (&#181;g m<sup>-3</sup>)',
+                 o3 = 'O<sub>3</sub> (&#181;g m<sup>-3</sup>)',
+                 pm10 = 'PM<sub>10</sub> (&#181;g m<sup>-3</sup>)',
+                 pm25 = 'PM<sub>2.5</sub> (&#181;g m<sup>-3</sup>)')
+emep_vars = c(#no = 'SURF_ug_NO',
+              no2 = 'SURF_ug_NO2',
+              o3 = 'SURF_ug_O3',
+              pm10 = 'SURF_ug_PM10',
+              pm25 = 'SURF_ug_PMFINE')
+
+plot_leaf = function(var_name, emep_runs = NULL, uemep_runs = NULL) {
+  uvar = str_c(var_name, 'concentration', sep = '_') %>% 
+    unname()
+  evar = emep_vars[var_name] %>% 
+  unname()
+  
+  if (!is.null(emep_runs)) {
+    emep_data = emep_runs %>% 
+      map(safely(read_stars), sub = evar, quiet = T) %>% 
+      transpose()
+    is_ok <- emep_data$error %>%
+      map_lgl(is_null)
+    emep_data = emep_data$result[is_ok] %>% 
+      map(st_set_crs, '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +units=km +k_0=0.9330127018922193 +no_defs +type=crs')
+    emep_runs = emep_runs[is_ok]
+  }
+  
+  if (!is.null(uemep_runs)) {
+    uemep_data = uemep_runs %>% 
+      map(safely(read_stars), sub = uvar, quiet = T) %>% 
+      transpose()
+    is_ok <- uemep_data$error %>%
+      map_lgl(is_null)
+    uemep_data = uemep_data$result[is_ok]
+    uemep_runs = uemep_runs[is_ok]
+    
+    if (!is.null(uemep_runs)) {
+      uk_sub = uk %>%
+        st_transform(st_crs(uemep_data[[1]])) %>% 
+        st_crop(uemep_data[[1]])
+    }
+
+    # uemep_data = uemep_data %>% 
+    #   map(function(x) x[uk_sub])
+  }
+  
+  runs = c(emep_data, uemep_data)
+  max_val = runs %>% 
+    flatten() %>% 
+    map_dbl(max, na.rm = T) %>% 
+    max(na.rm = T)
+  
+  run_res = runs %>% 
+    map(~attr(.x, 'dimensions')) %>%
+    map(1) %>%
+    map_dbl('delta')
+  
+  run_codes = case_when(run_res > 5 & run_res < 50 ~ 'E1',
+                           run_res <=5 ~ 'E2',
+                           run_res > 100 ~ 'U1',
+                           run_res >=50 & run_res <=100 ~ 'U2')
+  
+  zoom_levs = list()
+  
+  if (length(run_codes) == 1) {
+    zoom_levs[[run_codes]] = 0:18
+  }
+  
+  if (length(run_codes) == 2 ) {
+    if (all(c('E1', 'E2') %in% run_codes)) {
+      zoom_levs[[run_codes[1]]] = 0:5
+      zoom_levs[[run_codes[2]]] = 6:18
+    } else if (all(c('U1', 'U2') %in% run_codes)) {
+      zoom_levs[[run_codes[1]]] = 0:12
+      zoom_levs[[run_codes[2]]] = 13:18
+    } else {
+      zoom_levs[[run_codes[1]]] = 0:9
+      zoom_levs[[run_codes[2]]] = 10:18
+    }
+  }
+  
+  if (length(run_codes) == 3) {
+    if (all(c('E1', 'E2') %in% run_codes)) {
+      zoom_levs[[run_codes[1]]] = 0:5
+      zoom_levs[[run_codes[2]]] = 6:9
+      zoom_levs[[run_codes[3]]] = 10:18
+    } else {
+      zoom_levs[[run_codes[1]]] = 0:9
+      zoom_levs[[run_codes[2]]] = 10:12
+      zoom_levs[[run_codes[3]]] = 13:18
+    }
+  }
+  
+  if (length(run_codes) == 4) {
+    zoom_levs[[run_codes[1]]] = 0:6
+    zoom_levs[[run_codes[2]]] = 6:9
+    zoom_levs[[run_codes[3]]] = 10:12
+    zoom_levs[[run_codes[4]]] = 13:18
+  }
+  
+  map_breaks = VAR_PARAMS_LIST[[uvar]][['map_levs']]
+  uvar_precision = as.integer(str_sub(VAR_PARAMS_LIST[[uvar]][['map_diffprecision']], -2, -2))
+  
+  if (max_val > last(map_breaks)) {
+    map_breaks[length(map_breaks)] = round(max_val, uvar_precision)
+  } else {
+  }
+
+  ncl_palette_dir = '../EMEP_QAQC/NCL_colors'
+  
+  ncl_rainbow = read_color(path(ncl_palette_dir, 'WhiteBlueGreenYellowRed.rgb')) %>%
+    get_color(n = length(map_breaks) -1)
+  
+  cb = colorBin(palette = ncl_rainbow, domain = c(map_breaks[1], map_breaks[length(map_breaks)]), bins = map_breaks,
+                na.color = NA)
+  
+  l = leaflet() %>% 
+    addTiles() %>% 
+    #addProviderTiles(providers$CartoDB.Positron) %>% 
+    setView(lng = -0.128, lat = 51.507, zoom = 6)
+  
+  for (i in seq_along(runs)) {
+    l = l %>% 
+      addStarsImage(runs[[i]], colors = cb, project = T, opacity = 0.7, group = run_codes[[i]]) %>%
+      groupOptions(run_codes[[i]], zoomLevels = zoom_levs[[i]]) 
+  }
+  
+  l = l %>% 
+    addLegend(pal = cb, values = map_breaks, title = unname(leaflet_labs[var_name]), opacity = 1)
+} 
+
+```
+
+```{r plot_leaf, message = F}
+
+```
+
+
+```{r plot_maps, echo = F, fig.width = 8.4 , fig.height = 12, results = 'asis'}
+
+for (i in names(leaflet_labs)) {
+  cat('\n### ', str_replace(leaflet_labs[i], ' \\([^\\(]+$', '')  ,'\n')
+  page = htmltools::tagList(
+    plot_leaf(i, emep_runs = c(f50km, f3km), uemep_runs = c(f250m))
+  )
+  cat(as.character(page))
+  cat('\n\n\n')
+}
+
+```
+
