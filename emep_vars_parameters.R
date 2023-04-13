@@ -2,7 +2,7 @@
 
 get_params_list = function() {
   
-  MAP_TEMPLATE_BREAKS = c(0, 0.1,0.2,0.3,0.5,1,2,3,4,5,10,15,20,25,30,40,50,100, 1e6)
+  MAP_TEMPLATE_BREAKS = c(0, 0.1,0.2,0.3,0.5,1,2,3,4,5,10,15,20,25,30,40,50,100, 200)
   MAP_TEMPLATE_BREAKS_HM = c(0.001,0.01,0.1,0.2,0.3,0.5,1,2,3,4,5,10,15,20,30,40,50,60,70,80,100,200)
   MAP_TEMPLATE_DIFF_BREAKS = seq(-10,10,1)
   MAP_TEMPLATE_DIFF_BREAKS_HM = seq(-10,10,1)
@@ -206,7 +206,16 @@ get_params_list = function() {
                                                 dsc_levs = c(0, seq(1,10,1), 1e6),
                                                 budg_units = 'ug/m3',
                                                 budg_stat = 'mean'),
-                         SURF_ppb_O3 = list(map_levs = seq(20,50,2),
+                         SURF_ppb_O3 = list(map_levs = seq(10,50,4),
+                                            map_difflevs = 20 * MAP_TEMPLATE_DIFF_BREAKS,
+                                            map_diffprecision = '%d',
+                                            units = 'ppb',
+                                            pretty_lab = 'Surface O3',
+                                            budg_factor = 2,
+                                            dsc_levs = c(0, seq(20,50,2), 1e6),
+                                            budg_units = 'ug/m3',
+                                            budg_stat = 'mean'),
+                         SURF_ug_O3 = list(map_levs = seq(20,50,2),
                                             map_difflevs = 20 * MAP_TEMPLATE_DIFF_BREAKS,
                                             map_diffprecision = '%d',
                                             units = 'ppb',
@@ -1012,13 +1021,13 @@ get_params_list = function() {
     										                   dsc_levs = c(0, seq(1,10,1), 1e6),
     										                   budg_units = 'ug/m3',
     										                   budg_stat = 'mean'),
-									o3_concentration = list(map_levs = seq(40,100,4),
+									o3_concentration = list(map_levs = seq(0,100,5),
 									                        map_difflevs = 20 * MAP_TEMPLATE_DIFF_BREAKS,
 									                        map_diffprecision = '%d',
 									                        units = 'ug/m3',
 									                        pretty_lab = 'Surface O3',
 									                        budg_factor = 1,
-									                        dsc_levs = c(0, seq(20,50,2), 1e6),
+									                        dsc_levs = c(0, seq(20,100,5), 1e6),
 									                        budg_units = 'ug/m3',
 									                        budg_stat = 'mean'),
 									pm25_concentration = list(map_levs = 0.3 * MAP_TEMPLATE_BREAKS,
