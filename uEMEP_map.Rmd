@@ -36,15 +36,15 @@ knit_engines$set(asis = function(options) {
 VAR_PARAMS_LIST = get_params_list() # list of parameters for each EMEP var 
 OBS_VAR_PARAMS_LIST = get_obs_var_params_list() # list of plotting params for EMEP vars used in obs-mod comparison
 
-f250m = '../uEMEP/output/UK_annual_RPIG250_merged.nc'
-f3km = '../uEMEP/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_LF5_annual_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
-f50km = '../uEMEP/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_EU_2018_fullrun.nc'
-uk = read_sf('UK_geo_data/UK_countries.gpkg')
+# f250m = '../uEMEP/output/UK_annual_RPIG250_merged.nc'
+# f3km = '../uEMEP/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_LF5_annual_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
+# f50km = '../uEMEP/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_BASE_trend2018_emiss2018_EU_2018_fullrun.nc'
+# uk = read_sf('UK_geo_data/UK_countries.gpkg')
 
-# f50m = '/home/tomlis65/uEMEP/Runs/UK_annual_RPIG50/UK_annual_RPIG50_merged.nc'
-# f250m = '/home/tomlis65/uEMEP/Runs/UK_annual_RPIG250/UK_annual_RPIG250_merged.nc'
-# f3km = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/LF5_annual/2018/UK_3Km/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_LF5_annual_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
-#uk = read_sf('UK_geo_data/UK_countries.gpkg')
+f50m = '/home/tomlis65/uEMEP/Runs/UK_annual_RPIG50/UK_annual_RPIG50_merged.nc'
+f250m = '/home/tomlis65/uEMEP/Runs/UK_annual_RPIG250/UK_annual_RPIG250_merged.nc'
+f3km = '/home/tomlis65/EMEP_user_4.36/output/UKSCAPE/LF5_annual/2018/UK_3Km/EMEP4UK_emep-ctm-rv4.36_wrf4.2.2_UKSCAPE_LF5_annual_trend2018_emiss2018_UK_3Km_2018_fullrun.nc'
+uk = read_sf('UK_geo_data/UK_countries.gpkg')
 
 leaflet_labs = c(no2 = 'NO<sub>2</sub> (&#181;g m<sup>-3</sup>)',
                  #nox = 'NO<sub>x</sub> (&#181;g m<sup>-3</sup>)',
@@ -155,7 +155,7 @@ plot_leaf = function(var_name, emep_runs = NULL, uemep_runs = NULL) {
   } else {
   }
 
-  ncl_palette_dir = '../EMEP_QAQC/NCL_colors'
+  ncl_palette_dir = 'NCL_colors'
   
   ncl_rainbow = read_color(path(ncl_palette_dir, 'WhiteBlueGreenYellowRed.rgb')) %>%
     get_color(n = length(map_breaks) -1)
