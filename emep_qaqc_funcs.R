@@ -693,7 +693,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   p1 = ggplot()
   for (i in seq_along(p1_list)) {
     p1 = p1 +
-      geom_stars(data = cut(p1_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
+      geom_stars(data = cut(p1_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']], include.lowest = T))
   }
   p1 = p1 + 
     geom_sf(data = st_crop(boundaries_test, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
@@ -712,7 +712,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   p2 = ggplot()
   for (i in seq_along(p2_list)) {
     p2 = p2 +
-      geom_stars(data = cut(p2_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']]))
+      geom_stars(data = cut(p2_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']], include.lowest = T))
   }
   p2 = p2 + 
     geom_sf(data = st_crop(boundaries_ref, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
@@ -733,7 +733,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     p3 = ggplot()
     for (i in seq_along(p3_list)) {
       p3 = p3 +
-        geom_stars(data = cut(p3_list[[i]], breaks = diff_breaks))
+        geom_stars(data = cut(p3_list[[i]], breaks = diff_breaks, include.lowest = T))
     }
     p3 = p3 +
       geom_sf(data = st_crop(boundaries_test, p3_list[[1]]), color = "black", fill = NA, size = 0.07) + 
@@ -773,7 +773,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     p4 = ggplot()
     for (i in seq_along(p4_list)) {
       p4 = p4 +
-        geom_stars(data = cut(p4_list[[i]], breaks = c(-1e6, seq(-100, 100, 10), 1e6)))
+        geom_stars(data = cut(p4_list[[i]], breaks = c(-1e6, seq(-100, 100, 10), 1e6), include.lowest = T))
     }
     p4 = p4 +
       geom_sf(data = st_crop(boundaries_test, p4_list[[1]]), color = "black", fill = NA, size = 0.07) + 
