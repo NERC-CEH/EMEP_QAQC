@@ -166,7 +166,7 @@ load_emep_data = function(emep_fname, emep_crs, vars = 'all', time_index = NULL)
   }
   
   emep_data = map2(emep_fname, emep_vars, ~read_stars(.x, sub = .y, proxy = T)) %>% 
-    map(st_set_crs, emep_crs)
+    map2(emep_crs, ~st_set_crs(.x, value = .y))
   
   emep_data
 }
