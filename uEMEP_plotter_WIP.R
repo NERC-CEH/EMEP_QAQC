@@ -44,9 +44,9 @@ AREA = 'UK'
                   
 # MAIN --------------------------------------------------------------------
 for (j in seq_along(POLLUTANTS)) {
-  uemep_var = paste0(POLLUTANTS[i], '_concentration')
+  uemep_var = paste0(POLLUTANTS[j], '_concentration')
   
-  assert_choice(POLLUTANTS[i], c('no2', 'o3', 'pm25', 'pm10'))
+  assert_choice(POLLUTANTS[j], c('no2', 'o3', 'pm25', 'pm10'))
   
   uemep = read_stars(UEMEP_FPATH, sub = uemep_var) %>%
     st_as_stars()
@@ -57,7 +57,7 @@ for (j in seq_along(POLLUTANTS)) {
     filter(NAME == 'United Kingdom')
   
   
-  map_breaks = MAP_BREAKS[[POLLUTANTS[i]]]
+  map_breaks = MAP_BREAKS[[POLLUTANTS[j]]]
   #uemep_var_precision = as.integer(str_sub(VAR_PARAMS_LIST[[uemep_var]][['map_diffprecision']], -2, -2))
   uemep_var_max = uemep %>% 
     map_dbl(max, na.rm = T)
@@ -76,7 +76,7 @@ for (j in seq_along(POLLUTANTS)) {
   # cb = colorBin(palette = ncl_rainbow, domain = c(map_breaks[1], map_breaks[length(map_breaks)]), bins = map_breaks,
   #               na.color = NA)
   
-  uemep_lab = POLLUTANTS[i] %>% 
+  uemep_lab = POLLUTANTS[j] %>% 
     str_c(., '\n(', VAR_PARAMS_LIST[[uemep_var]][['units']], ')')
   
   for (i in seq_along(names(AREAS))) {
