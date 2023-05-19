@@ -8,6 +8,7 @@ output:
 
 ```{r setup, include=FALSE}
 library(knitr)
+library(ncmeta)
 library(tidyverse)
 library(fs)
 library(sf)
@@ -402,7 +403,8 @@ EMEP_BUDGET_FNAME = map_chr(EMEP_BUDGET_DIR, ~dir_ls(.) %>%
                               str_subset('fullrun'))
 
 emep_budget = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') %>% 
-  load_emep_data(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, vars = .)
+  load_emep_data(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, vars = .) %>% 
+  st_as_stars(curvilinear = NULL)
 
 #get test file modelled year to put into output filename
 mod_test_year = emep_budget[[1]] %>% 
@@ -416,17 +418,17 @@ if (!is.na(BUDGET_MASK_FNAME)) {
   emep_budget2 = tryCatch(
     error = function(cnd) {
       emep_budget %>%
-        map(st_as_stars)
+        map(~st_as_stars(.x, curvilinear = NULL))
       log_warn('FAILED to apply area mask. Budget calculated for the full modelling domain.')
       log_debug(cnd)
     },
     emep_budget %>%
-      map(st_as_stars) %>% 
+      map(~st_as_stars(.x, curvilinear = NULL)) %>% 
       map(apply_area_mask, area_mask = budget_mask)
   )
 } else {
   emep_budget2 = emep_budget %>%
-    map(st_as_stars)
+    map(st_as_stars, curvilinear = NULL)
   log_warn('Budget mask path: {BUDGET_MASK_FNAME}. Budget calculated for the full modelling domain.')
 }
 
@@ -730,7 +732,7 @@ log_info('Dataframe of obs sites (n = {nrow(sites_geo)}) created')
 #loads quicker to check on the fullrun data
 emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
                             emep_crs = TEST_CRS, vars = mobs_polls[1])[[1]] %>%
-  st_as_stars()
+  st_as_stars(curvilinear = NULL)
 
 sites_in = get_sites_in_domain(sites_geo, emep_slice)
 
@@ -820,6 +822,8 @@ if ('ox' %in% OBSERVED_POLLS) {
   log_info('Ox in {OX_UNITS} added to the data')
 }
 
+if ('co' %in% OBSERVED_POLLS && network %in% c('aurn', 'saqn', 'waqn', 'aqe', 'nian') )
+
 a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
                          .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
@@ -859,7 +863,7 @@ mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>%
 
 emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
                             emep_crs = TEST_CRS, vars = mobs_polls[1])[[1]] %>%
-  st_as_stars()
+  st_as_stars(curvilinear = NULL)
 
 #read saved meta data
 sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds) %>%

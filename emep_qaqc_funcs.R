@@ -165,7 +165,7 @@ load_emep_data = function(emep_fname, emep_crs, vars = 'all', time_index = NULL)
     }
   }
   
-  emep_data = map2(emep_fname, emep_vars, ~read_stars(.x, sub = .y, proxy = T)) %>% 
+  emep_data = map2(emep_fname, emep_vars, ~read_stars(.x, sub = .y, proxy = T, RasterIO = list(nXOff = 1, nYOff = 1))) %>% 
     map2(emep_crs, ~st_set_crs(.x, value = .y))
   
   emep_data
@@ -408,7 +408,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     emep_data = load_emep_data(emep_fnames, rep(c(test_crs, ref_crs), 2), vars = var)
     if (is.null(emep_data)) return(NULL)
     
-    emep_data = map(emep_data, st_as_stars) %>% 
+    emep_data = map(emep_data, st_as_stars, curvilinear = NULL) %>% 
       map(~set_names(.x, nm = var))
     
     o_t = emep_data[[outer_test_fname]]
@@ -426,7 +426,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     
     emep_data = load_emep_data(na.omit(emep_fnames), c(test_crs, ref_crs), vars = var)
     if (is.null(emep_data)) return(NULL)
-    emep_data = map(emep_data, st_as_stars) %>% 
+    emep_data = map(emep_data, st_as_stars, curvilinear = NULL) %>% 
       map(~set_names(.x, nm = var))
     
     o_t = emep_data[[outer_test_fname]]
@@ -442,7 +442,7 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     emep_data = load_emep_data(na.omit(emep_fnames), c(test_crs, ref_crs), vars = var)
     if (is.null(emep_data)) return(NULL)
     
-    emep_data = map(emep_data, st_as_stars) %>% 
+    emep_data = map(emep_data, st_as_stars, curvilinear = NULL) %>% 
       map(~set_names(.x, nm = var))
     
     i_t = emep_data[[inner_test_fname]]
@@ -655,9 +655,36 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   boundaries_ref = boundaries0%>%  
     st_transform(st_crs(diff_list[[1]][[2]]))
   
+  p1_list = map(diff_list, 1)
+  p2_list = map(diff_list, 2)
+  
+  #make sure all values are included in the colorscale range
+  max_val = c(p1_list, p2_list) %>% 
+    map_dbl(~map_dbl(.x, ~max(.x, na.rm = T), .y = .x)) %>% 
+    max()
+  
+  min_val = c(p1_list, p2_list) %>% 
+    map_dbl(~map_dbl(.x, ~min(.x, na.rm = T), .y = .x)) %>% 
+    min()
+  
   #breaks and labels for colorbars
   map_breaks = VAR_PARAMS_LIST[[var]][['map_levs']]
-  map_labs = as.character(map_breaks)[c(-1,-length(map_breaks))] 
+  
+  map_breaks_accuracy_exp = decimal_count(map_breaks) %>% 
+    max()
+  
+  if (max_val > last(map_breaks)) {
+    map_breaks[length(map_breaks)] = ceiling(max_val)
+  } else {
+  }
+  
+  if (min_val < first(map_breaks)) {
+    map_breaks[1] = floor(min_val)
+  } else {
+  }
+  
+  #map_breaks_accuracy = 10^(-map_breaks_accuracy_exp)
+  #map_labs = as.character(map_breaks)[c(-1,-length(map_breaks))] 
   
   
   diff_breaks = c(-1e6, VAR_PARAMS_LIST[[var]][['map_difflevs']], 1e6)
@@ -670,7 +697,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     .[c(-1, -length(c(-1e6, seq(-100, 100, 10), 1e6)))]
   
   ncl_rainbow = read_color(path(ncl_palette_dir, 'WhiteBlueGreenYellowRed.rgb')) %>%
-    get_color(n = length(VAR_PARAMS_LIST[[var]][['map_levs']]))
+    get_color(n = length(map_breaks) -1)
   
   ncl_rwb = read_color(path(ncl_palette_dir,'NCV_blu_red.rgb')) %>% 
     get_color(n = length(diff_breaks) - 1)
@@ -689,17 +716,18 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
     top_title = var
   }
   
-  p1_list = map(diff_list, 1)
   p1 = ggplot()
   for (i in seq_along(p1_list)) {
     p1 = p1 +
-      geom_stars(data = cut(p1_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']], include.lowest = T))
+      geom_stars(data = cut(p1_list[[i]], breaks = map_breaks, include.lowest = T))
   }
   p1 = p1 + 
     geom_sf(data = st_crop(boundaries_test, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
-                      labels = map_labs,
-                      guide = guide_coloursteps(title.position = 'top',
+                      labels = scales::label_number(#accuracy = map_breaks_accuracy,
+                                                    scale_cut = scales::cut_short_scale()),
+                      guide = guide_coloursteps(show.limits = T,
+                                                title.position = 'top',
                                                 title.hjust = 0.5, frame.colour = 'black',
                                                 frame.linewidth = 0.1,
                                                 barwidth = unit(6.7, 'inches'))) +
@@ -708,17 +736,18 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   
   p1 = theme_emep_diffmap(p1)
   
-  p2_list = map(diff_list, 2)
   p2 = ggplot()
   for (i in seq_along(p2_list)) {
     p2 = p2 +
-      geom_stars(data = cut(p2_list[[i]], breaks = VAR_PARAMS_LIST[[var]][['map_levs']], include.lowest = T))
+      geom_stars(data = cut(p2_list[[i]], breaks = map_breaks, include.lowest = T))
   }
   p2 = p2 + 
     geom_sf(data = st_crop(boundaries_ref, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
-                      labels = map_labs,
-                      guide = guide_coloursteps(title.position = 'top',
+                      labels = scales::label_number(#accuracy = map_breaks_accuracy,
+                                                    scale_cut = scales::cut_short_scale()),
+                      guide = guide_coloursteps(show.limits = T,
+                                                title.position = 'top',
                                                 title.hjust = 0.5, frame.colour = 'black',
                                                 frame.linewidth = 0.1,
                                                 barwidth = unit(6.7, 'inches'))) +
@@ -1682,13 +1711,13 @@ format_maps_page_title = function(outer_test_pth = NA, outer_ref_pth = NA,
     
   }
   if (is.na(ref_title)) {
-    pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(test_title)), 50), '\n')
+    pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(test_title)), 50, whitespace_only = F), '\n')
   } else if(is.na(test_title)) {
-    pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(ref_title)), 50), '\n')
+    pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(ref_title)), 50, whitespace_only = F), '\n')
   } else {
-    pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(test_title)), 50),
+    pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(test_title)), 50, whitespace_only = F),
                      '\n\n',
-                     str_wrap(str_c(run_labels[2],': ', path_file(ref_title)), 50),
+                     str_wrap(str_c(run_labels[2],': ', path_file(ref_title)), 50, whitespace_only = F),
                      '\n') 
   }
   pg_title
@@ -1778,4 +1807,41 @@ archive_log = function(log_pth) {
       file_move(log_pth, path(archive_dir, paste0(n_string,path_file(log_pth))))
     }
   }
+}
+
+decimal_count <- function(value) sapply(value, decimal_counter)
+#from skgrange/threadr
+
+# The worker
+decimal_counter <- function(x) {
+  
+  # Check
+  stopifnot(class(x) == "numeric")
+  
+  # If NA, return NA
+  if (is.na(x)) {
+    
+    x <- NA
+    
+  } else {
+    
+    # If contains a period
+    if (grepl("\\.", x)) {
+      
+      x <- stringr::str_replace(x, "0+$", "")
+      x <- stringr::str_replace(x, "^.+[.]", "")
+      x <- stringr::str_length(x)
+      
+    } else {
+      
+      # Otherwise return zero
+      x <- 0
+      
+    }
+    
+  }
+  
+  # Return
+  x
+  
 }

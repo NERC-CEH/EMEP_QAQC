@@ -1021,7 +1021,7 @@ get_params_list = function() {
     										                   dsc_levs = c(0, seq(1,10,1), 1e6),
     										                   budg_units = 'ug/m3',
     										                   budg_stat = 'mean'),
-									o3_concentration = list(map_levs = seq(0,100,5),
+									o3_concentration = list(map_levs = seq(0,90,5),
 									                        map_difflevs = 20 * MAP_TEMPLATE_DIFF_BREAKS,
 									                        map_diffprecision = '%d',
 									                        units = 'ug/m3',
