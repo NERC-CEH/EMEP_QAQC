@@ -829,12 +829,50 @@ a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thre
                          .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
 log_info('Annual means calculated')
-mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
-  mutate(site_type_grp = 'All')
-mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
-  bind_rows(mobs_stats_all, .) %>%
-  arrange(pollutant) %>%
-  relocate(site_type_grp, .after = pollutant)
+
+#temporary workaround for modStats bug
+if ('r' %in% MODSTATS_STATS) {
+  MODSTATS_STATS2 = setdiff(MODSTATS_STATS, 'r')
+  
+  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant')) %>%
+    mutate(site_type_grp = 'All',
+           pollutant = as.character(pollutant))
+    
+  msa2_poll = mobs_stats_all %>%
+    filter(n > 2) %>% 
+    pull(pollutant)
+  
+  msa2 = modStats(filter(a_means, pollutant %in% msa2_poll), statistic = 'r', type = 'pollutant') %>% 
+    mutate(pollutant = as.character(pollutant))
+  
+  mobs_stats_all = left_join(mobs_stats_all, msa2, by = 'pollutant') %>% 
+    relocate(site_type_grp, .after = last_col())
+    
+  
+  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant', 'site_type_grp')) %>%
+    mutate(pollutant = as.character(pollutant),
+           site_type_grp = as.character(site_type_grp))
+  
+  ms2_poll = mobs_stats %>%
+    filter(n > 2) %>% 
+    select(pollutant, site_type_grp)
+  
+  ms2 = modStats(semi_join(a_means, ms2_poll, by = c('pollutant', 'site_type_grp')),
+                 statistic = 'r', type = c('pollutant', 'site_type_grp')) %>%
+    mutate(pollutant = as.character(pollutant),
+           site_type_grp = as.character(site_type_grp))
+  
+  mobs_stats = left_join(mobs_stats, ms2, by = c('pollutant', 'site_type_grp')) %>% 
+    relocate(site_type_grp, .after = last_col())
+} else {
+  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
+    mutate(site_type_grp = 'All')
+  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
+    bind_rows(mobs_stats_all, .) %>%
+    arrange(pollutant) %>%
+    relocate(site_type_grp, .after = pollutant)
+}
+
 write_csv(mobs_stats, path(tables_pth_out, MOBS_STATS_FNAME))
 log_info('Mobs statistics SAVED')
 
@@ -890,12 +928,50 @@ a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thre
                          .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
 log_info('Annual means calculated')
-mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
-  mutate(site_type_grp = 'All')
-mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
-  bind_rows(mobs_stats_all, .) %>%
-  arrange(pollutant) %>%
-  relocate(site_type_grp, .after = pollutant)
+
+
+#temporary workaround for modStats bug
+if ('r' %in% MODSTATS_STATS) {
+  MODSTATS_STATS2 = setdiff(MODSTATS_STATS, 'r')
+  
+  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant')) %>%
+    mutate(site_type_grp = 'All',
+           pollutant = as.character(pollutant))
+    
+  msa2_poll = mobs_stats_all %>%
+    filter(n > 2) %>% 
+    pull(pollutant)
+  
+  msa2 = modStats(filter(a_means, pollutant %in% msa2_poll), statistic = 'r', type = 'pollutant') %>% 
+    mutate(pollutant = as.character(pollutant))
+  
+  mobs_stats_all = left_join(mobs_stats_all, msa2, by = 'pollutant') %>% 
+    relocate(site_type_grp, .after = last_col())
+    
+  
+  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant', 'site_type_grp')) %>%
+    mutate(pollutant = as.character(pollutant),
+           site_type_grp = as.character(site_type_grp))
+  
+  ms2_poll = mobs_stats %>%
+    filter(n > 2) %>% 
+    select(pollutant, site_type_grp)
+  
+  ms2 = modStats(semi_join(a_means, ms2_poll, by = c('pollutant', 'site_type_grp')),
+                 statistic = 'r', type = c('pollutant', 'site_type_grp')) %>%
+    mutate(pollutant = as.character(pollutant),
+           site_type_grp = as.character(site_type_grp))
+  
+  mobs_stats = left_join(mobs_stats, ms2, by = c('pollutant', 'site_type_grp')) %>% 
+    relocate(site_type_grp, .after = last_col())
+} else {
+  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
+    mutate(site_type_grp = 'All')
+  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
+    bind_rows(mobs_stats_all, .) %>%
+    arrange(pollutant) %>%
+    relocate(site_type_grp, .after = pollutant)
+}
 log_info('MOBS statistics calculated')
 ```
 
