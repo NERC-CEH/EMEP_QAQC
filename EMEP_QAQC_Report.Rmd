@@ -822,8 +822,9 @@ if ('ox' %in% OBSERVED_POLLS) {
   log_info('Ox in {OX_UNITS} added to the data')
 }
 
-if ('co' %in% OBSERVED_POLLS && network %in% c('aurn', 'saqn', 'waqn', 'aqe', 'nian') )
-
+#WIP need to address different units for CO in aurn data
+#if ('co' %in% OBSERVED_POLLS && network %in% c('aurn', 'saqn', 'waqn', 'aqe', 'nian') )
+  
 a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
                          .options = furrr_options(seed = T)) %>%
   left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
