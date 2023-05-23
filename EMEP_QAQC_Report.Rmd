@@ -21,6 +21,7 @@ library(openair)
 library(ggpubr)
 library(gridExtra)
 library(rnaturalearth)
+library(textclean)
 library(gt)
 library(leaflet)
 library(logger)
@@ -777,8 +778,8 @@ if (length(sites_used_files) == 0) {
 }
 
 #create a dataframe for site-pollutant iteration (enables parallel processing using furrr)
-iter_df = cross_df(list(code = sites_geo$code, poll = names(mobs_polls))) %>%
-  left_join(dplyr::select(sites_geo, code, network, i, j))
+iter_df = expand_grid(code = sites_geo$code, poll = names(mobs_polls)) %>%
+  left_join(dplyr::select(sites_geo, code, network, i, j), by = 'code')
 
 log_info('Mobs collating started')
 #collate modelled and observed data to a list
