@@ -724,8 +724,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   p1 = p1 + 
     geom_sf(data = st_crop(boundaries_test, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
-                      labels = scales::label_number(#accuracy = map_breaks_accuracy,
-                                                    scale_cut = scales::cut_short_scale()),
+                      labels = scales::label_number(scale_cut = c(0, 'k' = 1e3, 'M' = 1e6, 'G' = 1e9, 'T' = 1e12)),
                       guide = guide_coloursteps(show.limits = T,
                                                 title.position = 'top',
                                                 title.hjust = 0.5, frame.colour = 'black',
@@ -744,8 +743,7 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   p2 = p2 + 
     geom_sf(data = st_crop(boundaries_ref, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
     scale_fill_manual(values = ncl_rainbow, drop = F, 
-                      labels = scales::label_number(#accuracy = map_breaks_accuracy,
-                                                    scale_cut = scales::cut_short_scale()),
+                      labels = scales::label_number(scale_cut = c(0, 'k' = 1e3, 'M' = 1e6, 'G' = 1e9, 'T' = 1e12)),
                       guide = guide_coloursteps(show.limits = T,
                                                 title.position = 'top',
                                                 title.hjust = 0.5, frame.colour = 'black',
