@@ -1669,7 +1669,7 @@ mobs_to_long = function(mobs_dframe) {
   mobs_long = mobs_dframe %>% 
     pivot_longer(c(-date, -code), names_to = 'pollutant', values_to = 'conc') %>% 
     separate(pollutant, into = c('scenario', 'pollutant'), sep = '_') %>% 
-    pivot_wider(c(date, code, pollutant), names_from = scenario, values_from = conc)
+    pivot_wider(id_cols = c(date, code, pollutant), names_from = scenario, values_from = conc)
   mobs_long
 }
 
