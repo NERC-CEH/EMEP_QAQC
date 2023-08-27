@@ -20,11 +20,13 @@ library(ncdf4.helpers)
 library(openair)
 library(ggpubr)
 library(gridExtra)
+library(ggh4x)
 library(rnaturalearth)
 library(textclean)
 library(gt)
 library(leaflet)
 library(logger)
+library(htmltools)
 source('emep_qaqc_user_input.R')
 source('myquicktext.R')
 source('emep_vars_parameters.R')
@@ -46,14 +48,21 @@ gt_var_labeller = c(no = 'NO',
                     `ox(ppb)` = 'O[x] (ppb)',
                     nox = 'NO[x]',
                     nh3 = 'NH[3]',
-                    pm10 = 'PM[10]',
-                    pm2.5 = 'PM[2.5]',
                     sox = 'SO[x]',
                     so2 = 'SO[2]',
                     voc = 'VOC',
                     co = 'CO',
+                    pm2.5 = 'PM[2.5]',
                     pm25 = 'PM[2.5]',
-                    pmco = 'PM[Coarse]')
+                    pmco = 'PM[Coarse]',
+                    pm10 = 'PM[10]')
+
+MODSTATS_STATS_LOOKUP = c(n = 'Count',
+                          FAC2 = 'Factor of Two',
+                          MB = 'Mean Bias',
+                          NMB = 'Normalised Mean Bias',
+                          RMSE = 'Root Mean Squared Error',
+                          r = 'Correlation Coefficient')
 
 USERS = c(tomlis65 = 'Tomas Liska',
           mvi = 'Massimo Vieno',
@@ -71,6 +80,7 @@ MBS_exceedance_tbls = list(NULL,NULL)
 v_tbl2 = NULL
 budget_exceed_tbl = tibble()
 domain_dims = c(1,1)
+both_stats = tibble()
 
 #clean report_out_pth for new log and initiate new log file
 archive_log(logger_pth)
@@ -116,7 +126,7 @@ if (is.na(inner_domain)) {
 #determine author of the qaqc run
 qaqc_user = QAQC_DIR %>%
   path_split() %>% 
-  flatten_chr() %>% 
+  list_c() %>% 
   .[str_which(.,'home') + 1] %>% 
   USERS[.]
 
@@ -149,8 +159,6 @@ The report has been produced by **`r qaqc_user`**. All outputs have been saved i
 **Inner Domain:** Not submitted for this QA/QC
 ```
 
-
-`r if (!COMPARE_FILE_SIZE) {"\\begin{comment}"}`
 # File Size
 ```{r file_size_check, eval = COMPARE_FILE_SIZE}
 
@@ -170,14 +178,14 @@ fsize_tables = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR),
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE, eval = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE}
 ## `r outer_domain` Domain
 ```
-``` {asis, echo = !is.na(outer_domain) && COMPARE_FILE_SIZE, eval = !is.na(outer_domain) && COMPARE_FILE_SIZE}
-`r fsize_tables[[1]]`
+``` {r, eval = !is.na(outer_domain) && COMPARE_FILE_SIZE, results = 'asis'}
+fsize_tables[[1]]
 ```
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE, eval = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE}
 ## `r inner_domain` Domain
 ```
-``` {asis, echo = !is.na(inner_domain) && COMPARE_FILE_SIZE, eval = !is.na(inner_domain) && COMPARE_FILE_SIZE}
-`r fsize_tables[[2]]`
+``` {r, eval = !is.na(inner_domain) && COMPARE_FILE_SIZE, results = 'asis'}
+fsize_tables[[2]]
 ```
 
 ```{r, eval = COMPARE_FILE_SIZE}
@@ -186,8 +194,6 @@ log_layout(layout_blank)
 log_separator(separator = ' ')
 log_separator(separator = ' ')
 ```
-
-`r if (!COMPARE_FILE_SIZE) {"\\end{comment}"}`
 
 ```{r Inventory_emission_check, eval = COMPARE_EMISSIONS}
 log_layout(layout_glue)
@@ -305,7 +311,7 @@ if (length(MBS_list) > 0) {
 
 
   walk2(MBS_plots, path(plots_pth_out, str_c(na.omit(EMEP_domains), '_', MBS_PLOT_FNAME)),
-        ~ggsave(.y, plot = .x, width = 7, height = 7, type = 'cairo'))
+        ~ggsave(.y, plot = .x, width = 7, height = 7))
   
   log_info('Test vs Reference run emission check plots SAVED')
   }
@@ -327,8 +333,10 @@ MBS_exceedance_tbls_fmted = MBS_exceedance_tbls %>%
   .$result
 ```
 
-`r if (!COMPARE_EMISSIONS) {"\\begin{comment}"}`
-# Emissions
+``` {asis, echo = COMPARE_EMISSIONS, eval = COMPARE_EMISSIONS}
+# Emissions 
+```
+
 ``` {asis, echo = COMPARE_EMISSIONS && is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
 An emission inventory file not supplied. A comparison between model and inventory emissions is not available. 
 ```
@@ -346,10 +354,12 @@ All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supp
 
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
-`r emiss_exceedance_tbls_fmted[[1]]`
-`r log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')`
 ```
 
+``` {r, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH)}
+emiss_exceedance_tbls_fmted[[1]]
+log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')
+```
 
 ``` {asis, echo = COMPARE_EMISSIONS && length(MBS_list) == 0, eval = COMPARE_EMISSIONS}
 A comparison between test and reference run emissions for the supplied runs is currently not available. 
@@ -357,10 +367,14 @@ A comparison between test and reference run emissions for the supplied runs is c
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the reference run.
 ```
+
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
-`r MBS_exceedance_tbls_fmted[[1]]`
-`r log_info('Test vs reference emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')`
+```
+
+``` {r, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
+MBS_exceedance_tbls_fmted[[1]]
+log_info('Test vs reference emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')
 ```
 
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
@@ -370,20 +384,29 @@ Emissions of the following species in the test run differ by more than `r EMISS_
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
+
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
-`r emiss_exceedance_tbls_fmted[[2]]`
-`r log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {inner_domain} domain printed in report')`
+```
+
+``` {r, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
+emiss_exceedance_tbls_fmted[[2]]
+log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {inner_domain} domain printed in report')
 ```
 
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the reference run.
 ```
+
 ``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
-`r MBS_exceedance_tbls_fmted[[2]]`
-`r log_info('Test vs reference emission differences exceeding the threshold for {inner_domain} domain printed in report')`
 ```
+
+``` {r, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
+MBS_exceedance_tbls_fmted[[2]]
+log_info('Test vs reference emission differences exceeding the threshold for {inner_domain} domain printed in report')
+```
+
 ```{r, eval = COMPARE_EMISSIONS}
 log_success('!!!COMPARE_EMISSIONS task completed!!!')
 log_layout(layout_blank)
@@ -391,12 +414,11 @@ log_separator(separator = ' ')
 log_separator(separator = ' ')
 ```
 
-
-`r if (!COMPARE_EMISSIONS) {"\\end{comment}"}`
-
-`r if (!COMPARE_BUDGET_MSC) {"\\begin{comment}"}`
+``` {asis, echo = COMPARE_BUDGET_MSC, eval = COMPARE_BUDGET_MSC}
 # Budget & Mean Surface Concentrations (MSC)
-```{r budget, eval = COMPARE_BUDGET_MSC, include=FALSE}
+```
+
+```{r budget, eval = COMPARE_BUDGET_MSC, results = 'hide'}
 log_layout(layout_glue)
 log_with_separator('COMPARE_BUDGET_MSC task', separator = '-')
 
@@ -462,7 +484,7 @@ if (length(EMEP_BUDGET_FNAME) == 2) {
   v_tbl = categorise_emep_vars(budget_df2$Variable)
   v_tbl2 = v_tbl %>% 
     gt() %>% 
-    fmt_missing(columns = everything(), missing_text = '') %>% 
+    sub_missing(columns = everything(), missing_text = '') %>% 
     cols_label(emiss_vars = 'Emission Vars',
                surf_vars = 'Surface Conc Vars',
                dep_vars = 'Deposition Vars',
@@ -496,7 +518,6 @@ dsc_plots = plot_DSC(emep_budget2[[1]], VAR_PARAMS_LIST)
 
 page_titles = format_maps_page_title(inner_test_pth = EMEP_BUDGET_FNAME[1], run_labels = 'EMEP run') %>%
   rep(length(dsc_plots))
-
 export = marrangeGrob(grobs = dsc_plots, nrow = 1, ncol = 1, top = substitute(page_titles[g]))
 ggsave(filename = path(maps_pth_out, DSC_MAPS_FNAME), export, paper = 'a4', height = 10, width = 7)
 log_info('Budget maps in pdf format SAVED')
@@ -505,16 +526,17 @@ rm(dsc_plots, emep_budget2, export)
   
 ```
 
-``` {asis, echo = !is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = COMPARE_BUDGET_MSC && !is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the area mask file **`r BUDGET_MASK_FNAME`** for the following EMEP variables:
-`r v_tbl2`
-`r log_info('Variables in Test vs Reference budget check printed in a table in the report')`
 ```
 
-``` {asis, echo = is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = COMPARE_BUDGET_MSC && is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the full domain of the **`r EMEP_BUDGET_FNAME[1]`** file for the following EMEP variables:
-`r v_tbl2`
-`r log_info('Variables in Test vs Reference budget check printed in a table in the report')`
+```
+
+``` {r, eval = COMPARE_BUDGET_MSC && !is.null(v_tbl2)}
+v_tbl2
+log_info('Variables in Test vs Reference budget check printed in a table in the report')
 ```
 
 ``` {asis, echo = COMPARE_BUDGET_MSC && !is.null(v_tbl2) && nrow(budget_exceed_tbl) == 0, eval = COMPARE_BUDGET_MSC}
@@ -523,8 +545,11 @@ The budget or MSC for all the above variables in the test run is within `r BUDGE
 
 ``` {asis, echo = COMPARE_BUDGET_MSC && !is.null(v_tbl2) && !nrow(budget_exceed_tbl) == 0, eval = COMPARE_BUDGET_MSC}
 The difference in budget (or MSC) between the test and reference runs is larger than `r BUDGET_DIFF_THRESHOLD`% for the following variables:
-`r budget_exceed_tbl2`
-`r log_info('Variables in Test vs Reference budget check exceeding the {BUDGET_DIFF_THRESHOLD}% threshold printed in a table in the report')`
+```
+
+``` {r, eval = COMPARE_BUDGET_MSC && !nrow(budget_exceed_tbl) == 0}
+budget_exceed_tbl2
+log_info('Variables in Test vs Reference budget check exceeding the {BUDGET_DIFF_THRESHOLD}% threshold printed in a table in the report')
 ```
 
 ```{r, eval = COMPARE_BUDGET_MSC}
@@ -534,11 +559,10 @@ log_separator(separator = ' ')
 log_separator(separator = ' ')
 ```
 
-`r if (!COMPARE_BUDGET_MSC) {"\\end{comment}"}`
-
-`r if (!PLOT_COMPARISON_MAPS) {"\\begin{comment}"}`
-
+``` {asis, echo = PLOT_COMPARISON_MAPS, eval = PLOT_COMPARISON_MAPS}
 # Comparison Maps
+```
+
 ```{r comparison_maps, eval = PLOT_COMPARISON_MAPS, include=FALSE}
 log_layout(layout_glue)
 log_with_separator('PLOT_COMPARISON_MAPS task', separator = '-')
@@ -581,7 +605,7 @@ if (length(comp_map_data) > 0) {
   log_error('Data for comparison maps FAILED to collate')
 }
 
-comp_plots_list = map(comp_map_data, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
+comp_plots_list = future_map(comp_map_data, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS, .options = furrr_options(seed = T)) %>% 
   set_names(comp_map_vars[!null_vars_lgl])
 log_info('Comparison maps for {names(comp_plots_list)} created')
 
@@ -594,8 +618,8 @@ page_titles = format_maps_page_title(outer_test_pth = select_file_from_dir(TEST_
 
 if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_DIR)))) {
   #plot inner domain only if both outer and inner data provided
-  comp_map_data_i = map(comp_map_data,  ~.x[matches('inner', vars = names(.x))])
-  comp_plots_list_i = map(comp_map_data_i, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS) %>% 
+  comp_map_data_i = future_map(comp_map_data,  ~.x[matches('inner', vars = names(.x))], .options = furrr_options(seed = T))
+  comp_plots_list_i = future_map(comp_map_data_i, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS, .options = furrr_options(seed = T)) %>% 
     #add 'i' suffix to names to distinguish just inner domain plots
     set_names(str_c(comp_map_vars[!null_vars_lgl], 'i', sep = '_'))
   
@@ -609,9 +633,9 @@ if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_DIR)))
   rep(length(comp_plots_list_i))
   #sort plots so that they show outer+inner followed by inner only for each var
   comp_plots_list = map(seq_along(comp_plots_list), ~c(comp_plots_list[.x], comp_plots_list_i[.x])) %>% 
-    flatten()
+    list_flatten()
   page_titles = map(seq_along(page_titles), ~c(page_titles[.x], page_titles_i[.x])) %>% 
-    flatten_chr()
+    list_c()
 }
 
 #get domain dimensions for mapping
@@ -629,13 +653,13 @@ log_info('Comparison maps for the above variables in pdf format SAVED')
 comp_maps_vars_tbl = comp_map_data[!null_vars_lgl] %>% 
   map(names) %>% 
   map(1) %>% 
-  flatten_chr() %>% 
+  list_c() %>% 
   str_replace('_[^_]+$', '') %>% 
   categorise_emep_vars()
 
 comp_maps_vars_tbl2 = comp_maps_vars_tbl %>% 
   gt() %>% 
-  fmt_missing(columns = everything(), missing_text = '') %>% 
+  sub_missing(columns = everything(), missing_text = '') %>% 
   cols_label(emiss_vars = 'Emission Vars',
              surf_vars = 'Surface Conc Vars',
              dep_vars = 'Deposition Vars',
@@ -667,12 +691,16 @@ for (i in seq_along(report_plots_list)) {
 
 ``` {asis, echo = PLOT_COMPARISON_MAPS, eval = PLOT_COMPARISON_MAPS}
 Comparison maps have been plotted for the following variables:
-`r comp_maps_vars_tbl2`
-`r log_info('A list of vars for which comparison maps have been created printed in a table in the report')`
-
-Maps for selected variables - *`r stringi::stri_replace_last_fixed(report_plots_vars, ', ', ' and ')`* - are shown below:
 ```
 
+``` {r, eval = PLOT_COMPARISON_MAPS}
+comp_maps_vars_tbl2
+log_info('A list of vars for which comparison maps have been created printed in a table in the report')
+```
+
+``` {asis, echo = PLOT_COMPARISON_MAPS, eval = PLOT_COMPARISON_MAPS}
+Maps for selected variables - *`r stringi::stri_replace_last_fixed(report_plots_vars, ', ', ' and ')`* - are shown below:
+```
 
 ```{r plot_maps_report, echo=FALSE, eval = PLOT_COMPARISON_MAPS, fig.height=10 *(domain_dims[2]/domain_dims[1]*1.1), results='asis'}
 for (i in seq_along(report_plots_list)) {
@@ -689,7 +717,6 @@ log_layout(layout_blank)
 log_separator(separator = ' ')
 log_separator(separator = ' ')
 ```
-`r if (!PLOT_COMPARISON_MAPS) {"\\end{comment}"}`
 
 ```{r collate_mobs, include = F, echo = F, eval = COLLATE_MOBS}
 log_layout(layout_glue)
@@ -815,69 +842,8 @@ mobs_data_pths = path(data_pth_out, paste0(names(mobs_list), '_mod_obs'), ext = 
 future_walk2(mobs_wide, mobs_data_pths, write_rds, .options = furrr_options(seed = T))
 log_info('Mobs rds files SAVED')
 
-#annual mean summary table
-
-if ('ox' %in% OBSERVED_POLLS) {
-  mobs_list = mobs_list %>%
-    future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
-  log_info('Ox in {OX_UNITS} added to the data')
-}
-
-#WIP need to address different units for CO in aurn data
-#if ('co' %in% OBSERVED_POLLS && network %in% c('aurn', 'saqn', 'waqn', 'aqe', 'nian') )
-  
-a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
-                         .options = furrr_options(seed = T)) %>%
-  left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
-log_info('Annual means calculated')
-
-#temporary workaround for modStats bug
-if ('r' %in% MODSTATS_STATS) {
-  MODSTATS_STATS2 = setdiff(MODSTATS_STATS, 'r')
-  
-  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant')) %>%
-    mutate(site_type_grp = 'All',
-           pollutant = as.character(pollutant))
-    
-  msa2_poll = mobs_stats_all %>%
-    filter(n > 2) %>% 
-    pull(pollutant)
-  
-  msa2 = modStats(filter(a_means, pollutant %in% msa2_poll), statistic = 'r', type = 'pollutant') %>% 
-    mutate(pollutant = as.character(pollutant))
-  
-  mobs_stats_all = left_join(mobs_stats_all, msa2, by = 'pollutant') %>% 
-    relocate(site_type_grp, .after = last_col())
-    
-  
-  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant', 'site_type_grp')) %>%
-    mutate(pollutant = as.character(pollutant),
-           site_type_grp = as.character(site_type_grp))
-  
-  ms2_poll = mobs_stats %>%
-    filter(n > 2) %>% 
-    select(pollutant, site_type_grp)
-  
-  ms2 = modStats(semi_join(a_means, ms2_poll, by = c('pollutant', 'site_type_grp')),
-                 statistic = 'r', type = c('pollutant', 'site_type_grp')) %>%
-    mutate(pollutant = as.character(pollutant),
-           site_type_grp = as.character(site_type_grp))
-  
-  mobs_stats = left_join(mobs_stats, ms2, by = c('pollutant', 'site_type_grp')) %>% 
-    relocate(site_type_grp, .after = last_col())
-} else {
-  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
-    mutate(site_type_grp = 'All')
-  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
-    bind_rows(mobs_stats_all, .) %>%
-    arrange(pollutant) %>%
-    relocate(site_type_grp, .after = pollutant)
-}
-
-write_csv(mobs_stats, path(tables_pth_out, MOBS_STATS_FNAME))
-log_info('Mobs statistics SAVED')
-
 ```
+
 ```{r, eval = COLLATE_MOBS}
 log_success('!!!COLLATE_MOBS task completed!!!')
 log_layout(layout_blank)
@@ -885,14 +851,11 @@ log_separator(separator = ' ')
 log_separator(separator = ' ')
 ```
 
-
-`r if (!PLOT_MOBS) {"\\begin{comment}"}`
-```{r, eval = PLOT_MOBS}
-log_layout(layout_glue)
-log_with_separator('PLOT_MOBS task', separator = '-')
+``` {asis, echo = EVALUATE_MOBS || PLOT_MOBS || PLOT_MOBS_MAPS, eval = EVALUATE_MOBS || PLOT_MOBS || PLOT_MOBS_MAPS}
+# Observations
 ```
 
-```{r load_collated_mobs, include=FALSE, eval = PLOT_MOBS && !COLLATE_MOBS}
+```{r load_collated_mobs, eval = (EVALUATE_MOBS || PLOT_MOBS) && !COLLATE_MOBS}
 log_info('Loading collated mobs data')
 #choose the inner domain run unless that's NA
 obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
@@ -900,10 +863,6 @@ obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
 #determine obs pollutants to be analysed
 mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>% 
   na.omit()
-
-emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
-                            emep_crs = TEST_CRS, vars = mobs_polls[1])[[1]] %>%
-  st_as_stars(curvilinear = NULL)
 
 #read saved meta data
 sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds) %>%
@@ -918,127 +877,9 @@ mobs_list = future_map(mobs_pths, read_rds, .options = furrr_options(seed = T)) 
   #temporary to ensure code column is never NA due to a previous bug
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 log_info('MOBS data loaded')
-
-if ('ox' %in% OBSERVED_POLLS) {
-  mobs_list = mobs_list %>%
-    future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
-  log_info('Ox in {OX_UNITS} added to the data')
-}
-
-a_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
-                         .options = furrr_options(seed = T)) %>%
-  left_join(st_drop_geometry(dplyr::select(sites_geo, code, site_type_grp)))
-log_info('Annual means calculated')
-
-
-#temporary workaround for modStats bug
-if ('r' %in% MODSTATS_STATS) {
-  MODSTATS_STATS2 = setdiff(MODSTATS_STATS, 'r')
-  
-  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant')) %>%
-    mutate(site_type_grp = 'All',
-           pollutant = as.character(pollutant))
-    
-  msa2_poll = mobs_stats_all %>%
-    filter(n > 2) %>% 
-    pull(pollutant)
-  
-  msa2 = modStats(filter(a_means, pollutant %in% msa2_poll), statistic = 'r', type = 'pollutant') %>% 
-    mutate(pollutant = as.character(pollutant))
-  
-  mobs_stats_all = left_join(mobs_stats_all, msa2, by = 'pollutant') %>% 
-    relocate(site_type_grp, .after = last_col())
-    
-  
-  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS2, type = c('pollutant', 'site_type_grp')) %>%
-    mutate(pollutant = as.character(pollutant),
-           site_type_grp = as.character(site_type_grp))
-  
-  ms2_poll = mobs_stats %>%
-    filter(n > 2) %>% 
-    select(pollutant, site_type_grp)
-  
-  ms2 = modStats(semi_join(a_means, ms2_poll, by = c('pollutant', 'site_type_grp')),
-                 statistic = 'r', type = c('pollutant', 'site_type_grp')) %>%
-    mutate(pollutant = as.character(pollutant),
-           site_type_grp = as.character(site_type_grp))
-  
-  mobs_stats = left_join(mobs_stats, ms2, by = c('pollutant', 'site_type_grp')) %>% 
-    relocate(site_type_grp, .after = last_col())
-} else {
-  mobs_stats_all = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant')) %>%
-    mutate(site_type_grp = 'All')
-  mobs_stats = modStats(a_means, statistic = MODSTATS_STATS, type = c('pollutant', 'site_type_grp')) %>%
-    bind_rows(mobs_stats_all, .) %>%
-    arrange(pollutant) %>%
-    relocate(site_type_grp, .after = pollutant)
-}
-log_info('MOBS statistics calculated')
 ```
 
-```{r plot_mobs, include=FALSE, eval = PLOT_MOBS}
-# #plot scatter plots of annual means (like for like - missing observations are dropped from modelled data too)
-mobs_annual_scatter_plots = plot_annual_scatter(mobs_list = mobs_list, site_meta_df = sites_geo, poll_name_lookup = mobs_polls)
-mobs_annual_scatter_plots = mobs_annual_scatter_plots[order(match(mobs_annual_scatter_plots, mobs_polls))]
-log_info('MOBS annual scatter plots created')
-
-#get EMEP run fname for title on pdf plots
-run_info = format_maps_page_title(inner_test_pth = select_file_from_dir(obs_dir), run_labels = 'EMEP run')
-
-page_titles = rep(run_info, length(mobs_annual_scatter_plots) %/% PPP + 1)
-export = marrangeGrob(grobs = mobs_annual_scatter_plots, nrow = PPP , ncol = 1, top = substitute(page_titles[g]))
-ggsave(filename = path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf'), export, paper = 'a4', height = 10, width = 7)
-log_info('MOBS annual scatter plots SAVED')
-
-#plot daily and hourly mobs per site
-future_walk(mobs_list, site_time_series_pdf3, sites_geo, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
-            ppp = PPP, run_title_info = run_info, .options = furrr_options(seed = T))
-log_info('MOBS tseries plots in pdf format SAVED')
-```
-
-# Observations
-
-
-```{r mobs_report_stats, include=FALSE, eval = PLOT_MOBS}
-#for report:
-## create a table of observed species and their equivalent emep vars
-mobs_vartbl = enframe(mobs_polls) %>% 
-  mutate(name = gt_var_labeller[name]) %>% 
-  gt() %>%
-  cols_label(name = 'Species',
-             value = 'EMEP Var') %>% 
-  tab_options(data_row.padding = px(3),
-                #table.font.size = pct(95),
-                table.align='left') %>% 
-  text_transform(location = cells_body(columns = name),
-                 fn = function(x) {
-                   str_replace_all(x, '\\[', "<sub>") %>% 
-                     str_replace_all('\\]', "</sub>")
-                 })
-
-#modsstats table
-mobs_stats_all_gtbl = mobs_stats_all %>% 
-  select(-site_type_grp) %>% 
-  mutate(pollutant = gt_var_labeller[as.character(pollutant)]) %>%
-  gt() %>%
-  tab_options(data_row.padding = px(3),
-                #table.font.size = pct(95),
-                table.align='left') %>% 
-  cols_align(align = 'right',
-             columns = -pollutant) %>% 
-  cols_align(align = 'left',
-             columns = pollutant) %>% 
-  cols_label(pollutant = 'Species') %>% 
-  fmt_number(columns = any_of(c('FAC2', 'NMB', 'r')),
-             decimals = 2) %>% 
-  fmt_number(columns = any_of(c('MB', 'RMSE')),
-             decimals = 1) %>% 
-  text_transform(location = cells_body(columns = pollutant),
-                 fn = function(x) {
-                   str_replace_all(x, '\\[', "<sub>") %>% 
-                     str_replace_all('\\]', "</sub>")
-                 })
-
+```{r mobs_source_report_info, eval = (EVALUATE_MOBS || PLOT_MOBS)}
 #format output string based on network/custom observation configuration
 custom_lgl = file_exists(AUTO_NETWORK)
 if (T %in% custom_lgl) {
@@ -1068,9 +909,86 @@ if (T %in% custom_lgl) {
                              ' automatic networks')
   }
 }
+
+mobs_vartbl = enframe(mobs_polls) %>% 
+  mutate(name = gt_var_labeller[name]) %>% 
+  gt() %>%
+  cols_label(name = 'Species',
+             value = 'EMEP Var') %>% 
+  tab_options(data_row.padding = px(3),
+                #table.font.size = pct(95),
+                table.align='left') %>% 
+  text_transform(location = cells_body(columns = name),
+                 fn = function(x) {
+                   str_replace_all(x, '\\[', "<sub>") %>% 
+                     str_replace_all('\\]', "</sub>")
+                 })
 ```
 
-```{r mobs_report_stats_comp, include=FALSE, eval = PLOT_MOBS && !is.na(REF_MOBS_DIR)}
+``` {asis, echo = (EVALUATE_MOBS || PLOT_MOBS), eval = (EVALUATE_MOBS || PLOT_MOBS)}
+Hourly modelled concentrations have been compared with observations for the following species:
+```
+
+``` {r, eval = (EVALUATE_MOBS || PLOT_MOBS)}
+mobs_vartbl
+log_info('A link up table between OBS and EMEP var names printed in the report')
+```
+
+``` {asis, echo = (EVALUATE_MOBS || PLOT_MOBS), eval = (EVALUATE_MOBS || PLOT_MOBS)}
+Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **Sites_used.rds** in the **Data** subdirectory. The location of the sites is shown in the map below.
+```
+
+``` {r plot_mobs_sites_map, eval = EVALUATE_MOBS || PLOT_MOBS, fig.width = 8.4}
+if (is.null(MOBS_GROUPING_VAR)) {
+  plot_mobs_sites_map2(sites_geo, basemap = MOBS_MAP_BASEMAP, legend_label = 'Monitoring Site', legend_title = NULL)
+} else {
+  plot_mobs_sites_map2(sites_geo, basemap = MOBS_MAP_BASEMAP, colours = MOBS_GROUPING_VAR_COLOURS,
+                       group_column = MOBS_GROUPING_VAR, legend_title = 'Monitoring\nSite Type')
+}
+
+log_info('Map of all MOBS sites printed in the report')
+```
+
+```{r modStats, eval = (EVALUATE_MOBS || PLOT_MOBS)}
+
+if ('ox' %in% OBSERVED_POLLS) {
+  mobs_list = mobs_list %>%
+    future_map(add_ox, df_format = 'long', units = OX_UNITS, .options = furrr_options(seed = T))
+  log_info('Ox in {OX_UNITS} added to the data')
+}
+
+#WIP need to address different units for CO in aurn data
+#if ('co' %in% OBSERVED_POLLS && network %in% c('aurn', 'saqn', 'waqn', 'aqe', 'nian') )
+
+#calculate modstats for each site
+test_mobs_stats = mobs_list %>% 
+  future_map_dfr(calculate_modstats, modstats = MODSTATS_STATS, type = c('code', 'var')) %>% 
+  group_by(var) 
+#and save by 'var'
+walk2(group_split(test_mobs_stats), pull(group_keys(test_mobs_stats)),
+      ~write_csv(.x, file = path(tables_pth_out, str_glue('Mobs_modstats_{.y}'),ext = 'csv')))
+
+test_mobs_ameans = mobs_list %>% 
+  future_map_dfr(summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                 .options = furrr_options(seed = T))
+log_info('Annual means calculated')
+
+test_mobs_astats = calculate_modstats(test_mobs_ameans, modstats = MODSTATS_STATS, type = c('var'))
+if (!is.null(MOBS_GROUPING_VAR)) {
+  test_mobs_astats = left_join(test_mobs_ameans, select(sites_geo, any_of(c('code', 'site', 'station', MOBS_GROUPING_VAR)))) %>% 
+    calculate_modstats(modstats = MODSTATS_STATS, type = unique(c('var', MOBS_GROUPING_VAR))) %>% 
+    bind_rows(test_mobs_astats) %>% 
+    arrange(var) %>%
+    relocate(all_of(MOBS_GROUPING_VAR), .after = var) %>% 
+    mutate('{MOBS_GROUPING_VAR}' := if_else(is.na(.data[[MOBS_GROUPING_VAR]]), 'All', .data[[MOBS_GROUPING_VAR]]))
+}
+  
+write_csv(test_mobs_astats, path(tables_pth_out, MOBS_STATS_FNAME))
+log_info('Mobs statistics SAVED')
+
+```
+
+```{r mobs_report_stats_comp, eval = PLOT_MOBS && !is.na(REF_MOBS_DIR)}
 ref_sites_geo = read_rds(dir_ls(REF_MOBS_DIR, regexp = '(S|s)ites.*\\.rds'))
 ref_mobs_pths = dir_ls(REF_MOBS_DIR, regexp = '\\.rds') %>%
   str_subset('(S|s)ites', negate = T)
@@ -1080,57 +998,97 @@ ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(see
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 log_info('Reference MOBS data loaded')
 
-ref_a_means = future_map_dfr(ref_mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
-                             .options = furrr_options(seed = T)) %>%
-  left_join(st_drop_geometry(dplyr::select(ref_sites_geo, code, site_type_grp)))
+ref_mobs_ameans = future_map_dfr(ref_mobs_list, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                             .options = furrr_options(seed = T))
+
 log_info('Reference MOBS annual means calculated')
 
-a_means2 = a_means %>% 
+test_mobs_ameans2 = test_mobs_ameans %>% 
   filter(!is.na(obs)) %>% 
-  select(code, pollutant)
-ref_a_means2 = ref_a_means %>% 
+  select(code, var)
+ref_mobs_ameans2 = ref_mobs_ameans %>% 
   filter(!is.na(obs)) %>% 
-  select(code, pollutant) 
-both = inner_join(a_means2, ref_a_means2)
+  select(code, var) 
+both = inner_join(test_mobs_ameans2, ref_mobs_ameans2)
 log_info('Test and ref MOBS annual means merged')
 
-a_means_sub = semi_join(a_means, both, by = c('code', 'pollutant'))
-ref_a_means_sub = semi_join(ref_a_means, both, by = c('code', 'pollutant'))
+test_mobs_asub = semi_join(test_mobs_ameans, both, by = c('code', 'var')) %>% 
+  calculate_modstats(modstats = MODSTATS_STATS, type = c('var')) %>% 
+  select(-any_of(c('p', 'P'))) #remove significance level for this table
+ref_mobs_asub = semi_join(ref_mobs_ameans, both, by = c('code', 'var')) %>%
+  calculate_modstats(modstats = MODSTATS_STATS, type = c('var')) %>% 
+  select(-any_of(c('p', 'P'))) #remove significance level for this table
 
-mobs_stats_all_sub = modStats(a_means_sub, statistic = MODSTATS_STATS, type = c('pollutant'))
-ref_mobs_stats_all_sub = modStats(ref_a_means_sub, statistic = MODSTATS_STATS, type = c('pollutant'))
-both_stats = left_join(mobs_stats_all_sub, ref_mobs_stats_all_sub, by = c('pollutant', 'n'), suffix = c('_test', '_ref'))
+both_stats = left_join(test_mobs_asub, ref_mobs_asub, by = c('var', 'n'), suffix = c('_test', '_ref'))
 log_info('Model evaluations stats for test and ref MOBS annual means calculated')
-if (nrow(both_stats) == 0) {
-  mobs_stats_both_gtbl = NULL
-} else {
-  gt_stat_ordered = function(n) {
+
+```
+
+``` {asis, echo = EVALUATE_MOBS, eval = EVALUATE_MOBS}
+## Model Evaluation Stats
+Model evaluation stats for all variables across all sites with data capture >= `r MOBS_THRESHOLD`% are shown in the table below.
+```
+
+```{r mobs_report_stats, eval = EVALUATE_MOBS}
+#modstats table
+test_mobs_astats %>% 
+  mutate(var = gt_var_labeller[as.character(var)]) %>%
+  gt() %>%
+  tab_options(data_row.padding = px(3),
+                #table.font.size = pct(95),
+                table.align='left') %>% 
+  cols_align(align = 'right',
+             columns = -any_of(c('var', MOBS_GROUPING_VAR))) %>% 
+  cols_align(align = 'left',
+             columns = any_of(c('var', MOBS_GROUPING_VAR))) %>% 
+  cols_label(var = 'Species') %>% 
+  fmt_number(columns = any_of(c('FAC2', 'NMB', 'r')),
+             decimals = 2) %>% 
+  fmt_number(columns = any_of(c('MB', 'RMSE')),
+             decimals = 1) %>% 
+  text_transform(location = cells_body(columns = var),
+                 fn = function(x) {
+                   str_replace_all(x, '\\[', "<sub>") %>% 
+                     str_replace_all('\\]', "</sub>")
+                 }) %>% 
+  sub_missing(missing_text = '-')
+
+```
+
+``` {asis, echo = EVALUATE_MOBS && nrow(both_stats) != 0, eval = EVALUATE_MOBS && nrow(both_stats) != 0}
+The differences in model evaluation stats between the test and reference runs are shown in the table below. The difference has been calculated using only stations with data capture >= `r MOBS_THRESHOLD`% in both runs. The number of such sites is shown in the column labelled 'n'.
+```
+
+```{r mobs_report_comp, eval = EVALUATE_MOBS}
+
+if (nrow(both_stats) != 0) {
+    gt_stat_ordered = function(n) {
     #orders indexes for both_stats table
     o = c(1,2)
     out = vector('list', n)
     for (i in 1:n) {
       out[[i]] = c(2 + i, 2 + n + i )
     }
-    o = c(o, flatten_dbl(out))
-  }  
+    o = c(o, list_c(out))
+    } 
   
-  mobs_stats_both_gtbl = both_stats %>% 
+  both_stats %>% 
     .[gt_stat_ordered(length(MODSTATS_STATS) - 1)] %>% 
-    mutate(pollutant = gt_var_labeller[as.character(pollutant)]) %>%
+    mutate(var = gt_var_labeller[as.character(var)]) %>%
     gt() %>%
     tab_options(data_row.padding = px(3),
                 table.align='left') %>% 
     cols_align(align = 'right',
-               columns = -pollutant) %>% 
+               columns = -any_of(c('var', MOBS_GROUPING_VAR))) %>% 
     cols_align(align = 'left',
-               columns = pollutant) %>% 
-    cols_label(pollutant = 'Species') %>%
-    fmt_number(columns = any_of(str_c(c('FAC2', 'NMB', 'r'), rep(c('_test', '_ref'), 3))),
+               columns = any_of(c('var', MOBS_GROUPING_VAR))) %>% 
+    cols_label(var = 'Species') %>%
+    fmt_number(columns = any_of(do.call(str_c, expand.grid(c('FAC2', 'NMB', 'r'), c('_test', '_ref')))),
                decimals = 2) %>% 
-    fmt_number(columns = any_of(str_c(c('MB', 'RMSE'), rep(c('_test', '_ref'), 2))),
+    fmt_number(columns = any_of(do.call(str_c, expand.grid(c('MB', 'RMSE'), c('_test', '_ref')))),
                decimals = 1) %>% 
     tab_spanner_delim(delim = '_') %>%
-    text_transform(location = cells_body(columns = pollutant),
+    text_transform(location = cells_body(columns = var),
                    fn = function(x) {
                      str_replace_all(x, '\\[', "<sub>") %>% 
                        str_replace_all('\\]', "</sub>")
@@ -1140,104 +1098,164 @@ if (nrow(both_stats) == 0) {
 
 ```
 
-``` {asis, echo = PLOT_MOBS, eval = PLOT_MOBS}
-Hourly modelled concentrations have been compared with observations for the following species:
-`r mobs_vartbl`
-`r log_info('A link up table between OBS and EMEP var names printed in the report')`
-
-Observations have been taken from the `r network_string1`. A list of used sites and their meta data is saved in **Sites_used.rds** in the **Data** subdirectory. The location of the sites is shown in the map below.
+```{r, eval = PLOT_MOBS}
+log_layout(layout_glue)
+log_with_separator('PLOT_MOBS task', separator = '-')
 ```
 
-``` {r, echo = FALSE, eval = PLOT_MOBS, fig.width = 8.4}
-sites_geo = sites_geo %>%
-  mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural', 'Unknown'), ordered = T))
-plot_mobs_sites_map(sites_geo)
-log_info('Map of all MOBS sites printed in the report')
+```{r plot_annual_scatter_plots, eval = PLOT_MOBS && EVALUATE_MOBS, fig.width = 8.4}
+scatter_plots0 = test_mobs_ameans %>% 
+  group_by(var)
+
+if (!is.null(MOBS_GROUPING_VAR)) {
+  scatter_plots = scatter_plots0 %>% 
+    left_join(select(sites_geo, any_of(c('code', 'site', 'station', MOBS_GROUPING_VAR)))) %>% 
+  group_split() %>% 
+  map(plot_annual_scatter, colours = MOBS_GROUPING_VAR_COLOURS, group_column = MOBS_GROUPING_VAR, facet = F) %>% 
+  set_names(pull(group_keys(scatter_plots0)))
+} else {
+  scatter_plots = scatter_plots0 %>% 
+  group_split() %>% 
+  map(plot_annual_scatter) %>% 
+  set_names(pull(group_keys(scatter_plots0)))
+}
+
+scatter_plots = scatter_plots[order(match(names(scatter_plots), names(gt_var_labeller)))]
+log_info('MOBS annual scatter plots created')
+
+# 2 plots per page are hard coded, add blank plot if odd number of plots so that they are all the same size 
+if (length(scatter_plots)%%2 !=0 ) {
+  scatter_plots2 = c(scatter_plots, list(create_blank_plot()))
+} else {
+  scatter_plots2 = scatter_plots
+}
+
+#get EMEP run fname for title on pdf plots
+run_info = format_maps_page_title(inner_test_pth = select_file_from_dir(obs_dir), run_labels = 'EMEP run')
+
+scatter_plots_page_titles = rep(run_info, ceiling(length(scatter_plots2)/2))
+export = marrangeGrob(grobs = scatter_plots2, nrow = 2 , ncol = 1, top = substitute(scatter_plots_page_titles[g]))
+ggsave(filename = path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf'), export, paper = 'a4', height = 10, width = 7)
+log_info('MOBS annual scatter plots SAVED')
 ```
 
-``` {asis, echo = PLOT_MOBS, eval = PLOT_MOBS}
-## Model Evaluation Stats
-Model evaluation stats for all pollutants across all sites with data capture > 75% are shown in the table below.
-
-`r mobs_stats_all_gtbl`
-`r log_info('Table of model evaluation stats for the test run printed in the report')`
+``` {asis, echo = EVALUATE_MOBS && PLOT_MOBS, eval = EVALUATE_MOBS && PLOT_MOBS}
+## Annual Mean Scatter Plots
+Annual mean scatter plots calculated from all sites with data capture >= `r MOBS_THRESHOLD`%. Solid line represents 1:1 relationship, dashed lines 1:2 and 2:1 relationships, respectively.
 ```
 
-``` {asis, echo = PLOT_MOBS && !is.na(REF_MOBS_DIR) && !is.null(mobs_stats_both_gtbl), eval = PLOT_MOBS && !is.na(REF_MOBS_DIR) && !is.null(mobs_stats_both_gtbl)}
-The differences in model evaluation stats between the test and reference runs are shown in the table below. The difference has been calculated using only sites with > 75% data capture in both runs. The number of such sites is shown in column labelled 'n'.
-
-`r mobs_stats_both_gtbl`
-`r log_info('Table of model evaluation stats for the test and reference runs printed in the report')`
+``` {r plot_scatter_in_report, eval = EVALUATE_MOBS && PLOT_MOBS, fig.width = 8.4, results = 'asis'}
+for (i in seq_along(scatter_plots)) {
+  print(scatter_plots[[i]])
+}
+rm(scatter_plots2, scatter_plots, scatter_plots0, export)
 ```
 
-```{r mobs_report_selected_map, echo = FALSE, eval = PLOT_MOBS, results='asis'}
+``` {r, eval = EVALUATE_MOBS && PLOT_MOBS_MAPS, results = 'asis'}
+cat('\n##', unname(MODSTATS_STATS_LOOKUP[MOBS_MAP_STAT]),'Maps\n')
+cat('\nData calculated for sites with observation data capture >=', MOBS_THRESHOLD, '%.\n')
+```
+
+``` {r, eval = EVALUATE_MOBS && PLOT_MOBS_MAPS, fig.width = 8.4, results = 'asis'}
+test_mobs_stats2 = test_mobs_stats %>% 
+  ungroup() %>% 
+  left_join(select(st_drop_geometry(sites_geo), 
+                   any_of(c('code', 'station', 'site', 'elev(m)', 'latitude', 'longitude', 'call' ))), #for labels on the map
+            by = 'code')
+m_list0 = map(MOBS_MAP_VAR, ~filter(test_mobs_stats2, var == .x)) %>%
+  keep(~nrow(.x) > 0)
+if (length(m_list0) > 0) {
+  m_list = m_list0 %>% 
+      map(plot_mobs_stats_map, mobs_stat = MOBS_MAP_STAT[1], legend_title = MOBS_MAP_STAT[1])
+  
+  
+  m_titles = map_chr(MOBS_MAP_VAR, ~gt_var_labeller[.x]) %>% 
+    map_chr(.f = function(x) {
+      str_replace_all(x, '\\[', "<sub>") %>% 
+                     str_replace_all('\\]', "</sub>")
+      }) %>% 
+    map(~h3(HTML(.x)))
+  
+  htmltools::tagList(c(rbind(m_titles, m_list)))
+    
+}
+```
+
+```{r plot_mobs_tseries, eval = PLOT_MOBS}
+#plot daily and hourly mobs per site
+mobs_plotlist = mobs_list %>% 
+  future_map(~mutate(.x, date = with_tz(date, tzone = MOBS_TZONE)), .options = furrr_options(seed = T)) %>% 
+  future_map(format_mobs_to_plot, .options = furrr_options(seed = T)) %>% 
+  future_map(left_join, select(st_drop_geometry(sites_geo), any_of(c('code', 'station', 'site', MOBS_GROUPING_VAR))), .options = furrr_options(seed = T))
+  
+mobs_plotlist %>% 
+  future_walk(mobs_tseries_to_pdf, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
+              ppp = PPP, run_title_info = run_info, .options = furrr_options(seed = T))
+log_info('MOBS tseries plots in pdf format SAVED')
+names(mobs_plotlist) = mobs_plotlist %>% 
+  map_chr(~pull(.x, code) %>% unique)
+```
+
+```{r mobs_report_selected_map, eval = PLOT_MOBS && length(MOBS_STATION_REPORT_TSERIES) > 0, results='asis'}
 #select just sites that show time series in the report
-sites_geo_map_sub = sites_geo %>% 
-filter(code %in% MOBS_STATION_REPORT_TSERIES)
-cat('\n## Daily mean concentrations at selected sites\n\n')
+if (all(is.character(MOBS_STATION_REPORT_TSERIES))) {
+  sites_geo_map_sub = sites_geo %>% 
+  filter(code %in% MOBS_STATION_REPORT_TSERIES)
+} else if (all(is.numeric(MOBS_STATION_REPORT_TSERIES))) {
+  sites_geo_map_sub = sites_geo %>% 
+    filter(code %in% names(mobs_plotlist)[MOBS_STATION_REPORT_TSERIES])
+}
 ```
 
+```{r, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
+cat('\n## Daily mean concentrations at selected sites\n\n')
 
-```{r, echo = F, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
-
-plot_mobs_sites_map(sites_geo_map_sub)
+if (is.null(MOBS_GROUPING_VAR)) {
+  plot_mobs_sites_map2(sites_geo_map_sub, basemap = MOBS_MAP_BASEMAP, legend_label = 'Monitoring Site', legend_title = NULL)
+} else {
+  plot_mobs_sites_map2(sites_geo_map_sub, basemap = MOBS_MAP_BASEMAP, colours = MOBS_GROUPING_VAR_COLOURS,
+                       group_column = MOBS_GROUPING_VAR, legend_title = 'Monitoring\nSite Type')
+}
 
 cat('\n\n\n')
 log_info('Map of selected MOBS sites printed in the report')
 ```
 
 
-```{r, mobs_report_plot_tseries, echo = FALSE, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0, fig.width = 10, fig.height = 18, results ='asis'}
+```{r, mobs_report_plot_tseries, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0, fig.width = 10, fig.height = 18, results ='asis'}
 #add station codes to the list items so that stations for the report can be selected from mobs_list
-if (is.null(names(mobs_list))) {
-  names(mobs_list) = mobs_list %>% 
-    map_chr(~pull(.x, code) %>% unique)
-}
-report_mobs_list = mobs_list[MOBS_STATION_REPORT_TSERIES] 
+
+report_mobs_plotlist = mobs_plotlist[MOBS_STATION_REPORT_TSERIES]  
 log_info('MOBS data for selected sites extracted')
 
 #check if all data available, print those missing
-missing_mobs = setdiff(MOBS_STATION_REPORT_TSERIES, names(report_mobs_list))
+missing_mobs = setdiff(MOBS_STATION_REPORT_TSERIES, names(report_mobs_plotlist))
 
 if (length(missing_mobs) > 0) {
   log_warn('Data for the requested site {missing_mobs} not available. The site is ignored')
 }
 
 #remove NULL tibbles from plotting
-report_mobs_list = compact(report_mobs_list)
+report_mobs_plotlist = compact(report_mobs_plotlist) %>% 
+  future_map(~mutate(.x ,plots = map(data, plot_mobs_tseries),
+              var = map(plots, names)),
+      .options = furrr_options(seed = T)) %>% 
+  map(ungroup) %>% 
+  map(~filter(.x, month == -1)) %>% 
+  map(unnest, cols = c(plots, var))
 
-if (OX_UNITS == 'ppb') {
-  OBSERVED_POLLS = str_replace(OBSERVED_POLLS, '^ox$', 'ox\\(ppb\\)')
-}
+p_title_list = report_mobs_plotlist %>% 
+  map(~str_c(unique(.x[['code']]),
+             ' (',
+             str_c(unique(.x[['site']]), unique(.x[['station']]), collapse = ''), #allow both site and station column name
+             ')')) %>%  
+  map(replace_non_ascii) %>% 
+  map(str_replace_all, '\\.', '')
 
-#check if all requested pollutants are available in the data, print those missing
-missing_polls = setdiff(OBSERVED_POLLS, pull(distinct(report_mobs_list[[1]], pollutant)))
-if (length(missing_polls) == 0) {
-  log_warn('Data for the requested pollutant {missing_polls} not available. The pollutant is ignored')
-}
-
-OBSERVED_POLLS = setdiff(OBSERVED_POLLS, missing_polls)
-
-for (i in seq_along(names(report_mobs_list))) {
-  rep_mobs_data = report_mobs_list[[i]]
-  station_code = names(report_mobs_list)[i]
-  p_title = sites_geo %>% 
-    st_drop_geometry() %>% 
-    filter(code == station_code) %>% 
-    pull(site) %>% 
-    textclean::replace_non_ascii() %>%
-    str_c(station_code, ' (', ., ')', sep = '') %>% 
-    str_replace_all('\\.', '') #the html headings don't like '.' in names
-  
-  p_list = vector('list', length = length(OBSERVED_POLLS))
-  for (j in seq_along(OBSERVED_POLLS)) {
-    p_list[[j]] = rep_mobs_data %>%
-      filter(pollutant == OBSERVED_POLLS[j]) %>%
-      plot_time_series2()
-  }
-  p_all = ggarrange(plotlist = p_list, ncol = 1) #%>% 
+for (i in seq_along(names(report_mobs_plotlist))) {
+  p_all = ggarrange(plotlist = report_mobs_plotlist[[i]]$plots, ncol = 1) #%>% 
     #annotate_figure(top = text_grob(p_title, size = 16, face = 'bold'))
-  cat('\n### ', p_title, '\n')
+  cat('\n\n\n### ', p_title_list[[i]], '\n')
   print(p_all)
   cat('\n\n\n')
 }
@@ -1250,7 +1268,7 @@ log_layout(layout_blank)
 log_separator(separator = ' ')
 log_separator(separator = ' ')
 ```
-`r if (!PLOT_MOBS) {"\\end{comment}"}`
+
 
 ```{r, eval = T}
 log_layout(layout_glue)

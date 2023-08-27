@@ -1,5 +1,5 @@
 ---
-title: "EMEP QAQC User Guide 0.1"
+title: "EMEP/WRF QAQC User Guide 0.2"
 author: "Tomas Liska"
 output:
   rmdformats::downcute:
@@ -14,19 +14,19 @@ knitr::opts_chunk$set(echo = T, eval = T)
 ```
 
 # Introduction
-This user guide has been written to help you to run a QA/QC procedure of your EMEP4UK model run on UKCEH HPC Polar. It explains how to use the suite of EMEP4UK QA/QC R scripts in order to produce the QA/QC report, how and why to alter the default input parameters and finally it outlines the troubleshooting checklist if things go wrong.
+This user guide has been written to help you to run a QA/QC procedure of your WRF or EMEP4UK model run on UKCEH HPC Polar. It explains how to use the suite of the QA/QC R scripts in order to produce the QA/QC report, how and why to alter the default input parameters and finally it outlines the troubleshooting checklist if things go wrong.
 \
 \
-The QA/QC procedure consists of several tasks described in detail below. The procedure outputs a summary report as well as summary tables, summary plots, maps and time series plots in the user specified output directory. Any number of tasks can be selected. The procedure is designed to work for any EMEP output regardless of the coordinate system and whether a nested or standalone domain was modelled.
+The QA/QC procedure consists of several tasks described in detail below. The procedure outputs a summary report as well as summary tables, summary plots, maps and time series plots in the user specified output directory. Any number of tasks can be selected. The procedure is designed to work for any WRF/EMEP output regardless of the coordinate system and whether a nested or standalone domain was modelled.
 \
 \
-The procedure currently requires you to supply a test run, and a reference run against which the test run is evaluated. There are two exceptions to this condition; the budget calculation and evaluation against observations tasks do not require a reference run.
+The procedure currently requires you to supply a test run, and, if comparing the test run with a previous (reference) run, a reference run. If you don't supply a reference run some of the requested tasks will not be performed even if requested (e.g. PLOT_COMPARISON_MAPS)
 \
 \
-It is assumed that you have access to Polar HPC at UKCEH, have the conda emep_qaqc environment installed and have pulled the QAQC scripts from the github EMEP_QAQC repository. If not, please refer to the First Time Installation section at the end of this document.
+It is assumed that you have access to Polar HPC at UKCEH, have the conda emep_qaqc2 and/or wrf_qaqc2 environments installed and have pulled the QAQC scripts from the github EMEP_QAQC repository. If not, please refer to the First Time Installation section at the end of this document.
 
 # Running the QAQC
-The QAQC suite consists of five R scripts and some auxiliary files such as inventory emissions, area masks and others. The key file is **emep_qaqc_user_input.R** where the vast majority of parameters are set.
+The QAQC suite consists of several R scripts and some auxiliary files such as inventory emissions, area masks and others. The key file is **emep_qaqc_user_input.R** for EMEP or **wrf_qaqc_user_input.R** for WRF. This is where the vast majority of parameters are set. The WRF input file is a modified and simplified version of the EMEP input file. All other files are shared for both WRF and EMEP QA/QC. The files are described below.
 
 ## emep_qaqc_user_input.R
 At the top of the user input file there are proj4 definitions of the coordinate systems (CS) currently used in EMEP4UK modelling. These should not be edited unless a new CS is introduced in our modelling. Following the CS definitions is the USER INPUT section of the file which should be edited as needed for your QAQC run.
@@ -39,7 +39,7 @@ You have to select the CS of the EMEP4UK test and reference runs from the defini
 \
 
 ### Tasks
-There are currently 6 available tasks. Most tasks save plots or tables whose file names can be specified by the user. All tasks are by default set to TRUE (they are run unless set to FALSE) and are completed in the following order: 
+There are currently 8 available tasks. Most tasks save plots or tables whose file names can be specified by the user (further down). All tasks are by default set to TRUE (they are run unless set to FALSE) and are completed in the following order: 
 \
 \
 
@@ -49,7 +49,9 @@ This task prints a simple summary of the test run file size and its comparison t
 \
 
 #### COMPARE_EMISSIONS
-This tasks compares emissions totals in the RunLog.out EMEP4UK output file with the emission inventory. The emission totals in the MassBudgetSummary.txt file (in the model output directory) between the test and reference runs are also compared. You must provide a path to the inventory file through the EMISSION_INVENTORY_PTH parameter in the *Input dirs and fnames* section and the inventory file must have the correct formatting as shown in the example below. By default the inventory file is the EMEP European emissions. Bear in mind that the emission comparison between the test and reference runs is only appropriate if the test and reference domains are identical.
+This tasks compares emissions totals in the RunLog.out EMEP4UK output file with the emission inventory. At present only European domain runs can be compared. For all other domains this part will be skipped. You must provide a path to the inventory file through the EMISSION_INVENTORY_PTH parameter in the *Input dirs and fnames* section. By default the inventory file is set to NA .The EMEP European emissions are in the Emission_inventory_files directory.
+
+The emission totals in the MassBudgetSummary.txt file (in the model output directory) between the test and reference runs are also compared. Bear in mind that the emission comparison between the test and reference runs is only appropriate if the test and reference domains are identical.
 \
 \
 Emission differences exceeding the percentage set in EMISS_DIFF_THRESHOLD (set in *Other parameters* section) will be printed in the report.
@@ -60,13 +62,13 @@ Emission differences exceeding the percentage set in EMISS_DIFF_THRESHOLD (set i
 This tasks calculates the budget or mean surface concentrations (MSC) for EMEP output species. You set the evaluated EMEP species by naming them in the BUDGET_VARS vector (*Other parameters* section). For example: `r BUDGET_VARS = c('SURF_ug_NO2', 'DDEP_SOX')`. By default the BUDGET_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the budg_factor parameter set are used. For the budget calculation all of budg_factor, budg_unit and budg_stat parameters must be provided. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. For your information a table listing all species for which the budget is calculated is printed in the report.
 \
 \
-The calculated values are automatically saved in a table. You can limit the area over which the budget or MSCs are calculated by providing a path to an area mask file. The file must be in either a geopackage or shapefile format and is set in the BUDGET_MASK_FNAME variable (*Input dirs and fnames* section). If masking is not required set the BUDGET_MASK_FNAME to "NA".
+The calculated values are automatically saved in a table. You can limit the area over which the budget or MSCs are calculated by providing a path to an area mask file. The file must be in either a geopackage (.gpkg) or shapefile (.shp) format and is set in the BUDGET_MASK_FNAME variable (*Input dirs and fnames* section). If masking is not required set the BUDGET_MASK_FNAME to "NA".
 \
 \
 If exactly two model runs (e.g. test and reference) are submitted a table of budget differences will be saved and the EMEP species for which the difference exceeds the percentage set in BUDGET_DIFF_THRESHOLD (*Other parameters* section) will be printed in the report. 
 \
 \
-This tasks also prints a pdf document with maps for each of the EMEP species for which the budget or MSC has been calculated. You need to provide break values for the plot colourbars and set them using the dsc_levs parameter in the VAR_PARAMS_LIST.
+This tasks also prints a pdf document with maps for each of the EMEP species for which the budget or MSC has been calculated. You need to provide break values for the plots' colour scales and set them using the dsc_levs parameter in the VAR_PARAMS_LIST.
 \
 \
 
@@ -79,32 +81,43 @@ The maps are saved in a pdf document. A selection of species set in the COMP_MAP
 \
 
 #### COLLATE_MOBS
-This task collates modelled concentrations with observations. Currently only hourly values are collated, however this will be addressed in further updates. The observations are taken from the AURN monitoring network by default. You can also choose automatic observations (AUTO_NETWORK parameter in *Other parameters* section) from the SAQN, WAQN, NIQA and AQE networks as well as other observational datasets as described below. The observed data from automatic monitoring stations in the UK are pulled from the Ricardo servers in real time. The collated datasets are automatically saved in the Data subdirectory of the QAQC directory. This task is the most computing power hungry and therefore most time consuming. If the data has already been collated previously set this task to FALSE. In that case the data for the PLOT_MOBS task are pulled from the Data subdirectory.  
+This task collates modelled concentrations with observations. Currently only hourly values are collated, however this will be addressed in further updates. The observations are taken from the AURN monitoring network by default. You can also choose automatic observations (AUTO_NETWORK parameter in *Other parameters* section) from the SAQN, WAQN, NIQA and AQE networks as well as other observational datasets as described below. The observed data from automatic monitoring stations in the UK are pulled from the Ricardo servers in real time. The collated datasets are automatically saved in the Data subdirectory of the QAQC directory. This task is the most computationally demanding and therefore most time consuming. If the data has already been collated previously set this task to FALSE. In that case the data for the other tasks involving MOBS are pulled from the Data subdirectory.  
 \
 \
-As mentioned above, you can provide observational data from other sources. However, the data must be in the same format as the Ricardo datasets, i.e. each file must contain data for one site and have hourly data with the following columns: 'code' (site identifier), 'date' (datetime format) and pollutant name for each pollutant with concentrations as values in the pollutant column. The pollutant name must match the names in Ricardo datasets ('no2', 'no', 'o3', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25'). Additionally, an rds file with metadata for each site must be provided and the path to it included in the AUTO_NETWORK parameter (e.g. AUTO_NETWORK = '/home/tomlis65/custom_obs_meta.rds'). Similarly to the Ricardo meta files the rds file must contain columns 'code' (site identifier) , 'site' (site name), 'site_type_grp' (could be set to 'unknown' if not known), 'latitude' and 'longitude'. Additionally, there must be a column 'network' with the full path to the site data.
+As mentioned above, you can provide observational data from other sources. However, the data must be in the same format as the Ricardo datasets, i.e. each file must contain data for one site and have hourly data with the following columns: 'code' (site identifier), 'date' (datetime format) and pollutant name for each pollutant with concentrations as values in the pollutant column. The pollutant name must match the names in Ricardo datasets ('no2', 'no', 'o3', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25'). Additionally, an rds file with metadata for each site must be provided and the path to it included in the AUTO_NETWORK parameter (e.g. AUTO_NETWORK = '/home/tomlis65/custom_obs_meta.rds'). Similarly to the Ricardo meta files the rds file must contain columns 'code' (site identifier) , 'site' (site name),  'latitude' and 'longitude'. There must be a column 'network' with the full path to the site data!!! Additionally, there can be a grouping column for the sites, e.g. 'site_type' - see below for details.
 \
 \
 Both automatic and user provided observations can be used at the same time. E.g. AUTO_NETWORK = c('AURN', '/home/tomlis65/custom_obs_meta.rds')
 \
 \
-You must link the pollutant name with the EMEP species name using the OBSERVED_POLLS_EMEP_LINK named vector (*Other parameters* section). This is particularly important for PM for which the EMEP name has changed in the past. 
-\
-\
-This task also calculates model evaluation statistics for the model run and saves them in a table in the Tables subdirectory. 
+You must link the pollutant name with the EMEP species name using the OBSERVED_POLLS_EMEP_LINK named vector (*Other parameters* section). This is particularly important for PM for which the EMEP name has changed in the past. Please be aware that all pollutants are presumed to be in ug/m3, however CO observations in the automatic monitoring networks are measured in mg/m3. The script currently does not handle CO.
 \
 \
 
+#### EVALUATE_MOBS
+This task calculates model evaluation statistics for the model run and saves them in tables in the Tables subdirectory. Stats for each site per pollutant (temporal evaluation) are saved as well as the evaluation of annual means for all sites with data capture over a threshold (spatial evaluation). 
+
+This task also prints a leaflet map showing the location of the sites.
+
+
 #### PLOT_MOBS
-This task uses the collated modelled/observed datasets and produces time series plots for each site. Each site gets its own pdf document (name of the file is based on the station code) with daily means for the whole year and hourly means for each month. The plot parameters for standard pollutants ('no', 'no2', 'o3', 'ox', 'ox(ppb)', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25') are set in **emep_vars_parameters.R**. For other pollutants the parameters need to be set before plotting.
+This task uses the collated MOBS datasets and produces time series plots for each site. Each site gets its own pdf document (name of the file is based on the station code) with daily means for the whole year and hourly means for each month. The plot parameters for standard pollutants ('no', 'no2', 'o3', 'ox', 'ox(ppb)', 'nh3', 'so2', 'pm10', 'pm2.5' or 'pm25') are set in **emep_vars_parameters.R**. For other pollutants the parameters need to be set before plotting.
 \
 \
-In addition to the time series plots, scatter plots of modelled vs observed annual means per site type are plotted and saved in the Plots subdirectory.
+In addition to the time series plots, scatter plots of modelled vs observed annual means are plotted and saved in the Plots subdirectory and printed in the report. These plots can be conditioned by a grouping column in the site meta data.
+\
+\
+This task also prints a leaflet map showing the location of the sites.
 \
 \
 In the report the daily means time series plots are shown for sites in the MOBS_STATION_REPORT_TSERIES vector (*Other parameters* section). A map of the selected station is printed in the report too if the MOBS_STATION_REPORT_MAP parameter (also in *Other parameters* section) is set to TRUE
 \
 \
+
+#### PLOT_MOBS_MAPS
+
+This task plots leaflet maps showing the a selected evaluation stat (set in MOBS_MAP_STAT) per pollutant (set in MOBS_MAP_VAR) for all sites with data capture over a threshold. By default the stat is Mean Bias (MB) and the pollutants no2, o3 and pm2.5. The stats can be any of the modstat stats however be aware this functionality is experimental and might not work well for other stats. 
+
 
 ### Input and Ouput directories and file names
 
@@ -133,6 +146,11 @@ RUN_LABELS sets the names for the test and reference runs that will be printed i
 PRETTY_LABS allows for properly formatted labels to be printed in the output. The default is FALSE which means labels will be set to EMEP4UK species names e.g. 'SURF_ug_NO2'. If you set this to TRUE the *pretty_labs* parameters in the VAR_PARAMS_LIST must be set for all analysed EMEP4UK species.
 \
 \
+MOBS_TZONE allows you to select the time zone in which MOBS time series plots are plotted. For options run OlsonNames() function.
+\
+\
+MOBS_MAP_BASEMAP allows you to choose the background map for all leaflet maps in the report. Options are 'world_topo', 'satellite', or 'terrain'.
+
 OBSERVED_POLLS - a vector of pollutant names for the model/observation data collation and plotting.
 \
 \
@@ -149,26 +167,44 @@ PPP - the number of plots per page in the time series pdf output. Ideally not to
 \
 \
 
+## wrf_qaqc_user_input.R
+This file is similar to the emep_qaqc_user_input.R file. The key differences are:
+\
+No coordinate system needs to be defined, the script uses python which can work it out by itself
+\
+Only tasks involving MOBS are available.
+\
+The scripts pulls obervations from the NOAA Integrated Surface Database. There are thousands of sites in the recent years hence some sampling needs to be used for evaluation. The sampling is performed by the sample_sites() function. Please refer to its description. The function parameters are set in SITES_SAMPLING_TYPE, SITES_SAMPLING_SELECTOR and N_SITES input parameters.
+\
+\
+
 ## emep_vars_parameters.R
-As referred to previously, this file contains the calculation and plotting parameters for EMEP4UK species. If a species is missing please update the file. 
+As referred to previously, this file contains the calculation and plotting parameters for EMEP4UK and WRF species. If a species is missing please update the file. 
 
 ## myquicktext.R
 This is an extension of the openair::quickText function covering species present in the EMEP output. This file is only used if the PRETTY_LABS parameter is set to TRUE. Some species may have been missed in which case you will have to update the file.
 
 ## EMEP_QAQC_Report.Rmd
-The R Markdown document used to create all the outputs. You should not need to edit it in any way.
+The R Markdown document used to create all the EMEP QA/QC outputs. You should not need to edit it in any way.
+
+## WRF_QAQC_Report.Rmd
+The R Markdown document used to create all the WRF QA/QC outputs. You should not need to edit it in any way.
 
 ## Renderer.R
-This script is used to render the EMEP_QAQC_Report. This file should be referred to when submitting a job to the Polar queue system.
+This script is used to render either the EMEP_QAQC_Report or WRF_QAQC_REPORT. This file should be referred to when submitting a job to the Polar queue system.
 \
 \
+
+# QAQC Function Description
+The majority functions in the emep_qaqc_funcs.R file can be used standalone outside the QAQC script for your own analysis. The main functions are described in detail below:
+
 
 # First Time Installation {-}
 ## Clone GitHub Repository {-}
 The QAQC R scripts and auxiliary files are in the UKCEH GitHub repository EMEP_QAQC. Clone the repository to your home directory with:
 
 ```{bash clone_repo, eval = F}
-git clone https://github.com/vulpescz/EMEP_QAQC.git
+git clone https://github.com/NERC-CEH/EMEP_QAQC.git
 ```
 
 ## Conda installation on Polar {-}
@@ -184,4 +220,6 @@ Then activate the environment with
 ```{bash activate_env, eval = F}
 conda activate emep_qaqc
 ```
-YOu are then ready to run your QAQC
+You are then ready to run your QAQC
+
+

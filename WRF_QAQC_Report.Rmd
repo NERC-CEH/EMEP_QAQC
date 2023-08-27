@@ -1,0 +1,554 @@
+---
+title: "WRF QAQC Report"
+output:
+  rmdformats::readthedown:
+    toc_depth: 3
+    fig_width: 10
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(fs)
+library(sf)
+library(worldmet)
+library(openair)
+library(furrr)
+library(checkmate)
+library(rvest)
+library(gridExtra)
+library(grid)
+library(gt)
+library(ggpubr)
+library(textclean)
+library(leaflet)
+library(leaflet.providers)
+library(leafem)
+library(htmltools)
+library(reticulate)
+wrf = import('wrf')
+ncpy = import('netCDF4')
+xr = import('xarray')
+ccrs = import('cartopy.crs')
+metpy = import('metpy')
+np = import('numpy')
+
+source('wrf_qaqc_user_input.R')
+source('myquicktext.R')
+source('emep_vars_parameters.R')
+source('emep_qaqc_funcs.R')
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = 'center')
+knit_engines$set(asis = function(options) {
+  if (options$echo && options$eval) knit_child(text = options$code)
+})
+
+VAR_PARAMS_LIST = get_params_list() # list of parameters for each EMEP var 
+OBS_VAR_PARAMS_LIST = get_obs_var_params_list() # list of plotting params for EMEP vars used in obs-mod comparison
+
+set.seed(RANDOM_SEED) # for reproducibility
+
+#check USER INPUT
+if (!((length(SITES_SAMPLING_SELECTOR) == length(SITES_SAMPLING_TYPE)) && 
+      (length(N_SITES) = length(SITES_SAMPLING_TYPE)))) {
+  stop('Site sampling parameters not the same length')
+}
+
+## create a table of observed species and their equivalent emep vars
+gt_var_labeller = c(T2 = 'T',
+                    td2 = 'T[d]',
+                    slp = 'Sea Level Pressure',
+                    rh2 = 'Relative Humidity',
+                    wd = 'Wind Direction',
+                    ws = 'Wind Speed',
+                    precip12 = 'Precip 12h',
+                    precip6 = 'Precip 6h',
+                    precip = 'Accumulated Precip')
+
+USERS = c(tomlis65 = 'Tomas Liska',
+          mvi = 'Massimo Vieno',
+          jansch = 'Janice Scheffler',
+          yuawan = 'Yuanlin Wang',
+          racbec = 'Rachel Beck',
+          liqyao = 'Liquan Yao',
+          damtan = 'Damaris Tan')
+
+MODSTATS_STATS_LOOKUP = c(n = 'Count',
+                          FAC2 = 'Factor of Two',
+                          MB = 'Mean Bias',
+                          NMB = 'Normalised Mean Bias',
+                          RMSE = 'Root Mean Squared Error',
+                          r = 'Correlation Coefficient')
+
+
+#set for parallel processing
+future::plan(multicore)
+
+#initiate chunk conditional vars
+sites_geo_map_sub = tibble()
+both_stats = tibble() #for modstats comparison of test and ref MOBS
+```
+
+
+```{r run info}
+#determine author of the qaqc run
+qaqc_user = QAQC_DIR %>%
+  path_split() %>% 
+  flatten_chr() %>% 
+  .[str_which(.,'home') + 1] %>% 
+  USERS[.]
+
+if (is.na(qaqc_user)) {
+  stop('User not defined in USERS, please update USERS in WRF_QAQC_Report.Rmd.')
+}
+
+```
+This report evaluates the `r WRF_RUN_DESCRIPTOR` model run. The report has been produced by **`r qaqc_user`** and all outputs have been saved in **`r QAQC_DIR`.**
+
+```{r collate_mobs, include = F, eval = COLLATE_MOBS}
+wrf_files = WRF_DIR %>% 
+  dir_ls() %>% 
+  str_subset(WRF_DOMAIN)
+
+#get modelled year from the first file
+yr = ncpy$Dataset(wrf_files[1]) %>% 
+  wrf$extract_times(timeidx = wrf$ALL_TIMES) %>% 
+  year() %>% 
+  unique() %>% 
+  as.integer()
+
+met_sites = get_isd_sites(yr)
+
+#extract model domain x,y dimension sizes
+sn_dim = ncpy$Dataset(wrf_files[1])$dimensions$south_north$size
+we_dim = ncpy$Dataset(wrf_files[1])$dimensions$west_east$size
+
+
+#extract site indeces and filter out those outside the model domain
+met_indeces = wrf$ll_to_xy(ncpy$Dataset(wrf_files[1]), latitude = met_sites$latitude, longitude = met_sites$longitude, meta = F)
+met_indeces = as_tibble(met_indeces, .name_repair = ~met_sites$code) %>% 
+  mutate(index = c('i', 'j')) %>% 
+  pivot_longer(-index, names_to = 'code', values_to = 'val') %>%
+  pivot_wider(id_cols = code, names_from = index, values_from = val) %>% 
+  filter(between(i, 0, we_dim - 1),between(j, 0, sn_dim - 1)) # python is 0-start index
+
+sites_geo = met_sites %>% 
+  filter(code %in% met_indeces$code)
+
+for (s in seq_along(SITES_SAMPLING_TYPE)) {
+  sites_geo  = sites_geo %>%
+  sample_sites(type = SITES_SAMPLING_TYPE[[s]],
+               selector = SITES_SAMPLING_SELECTOR[[s]],
+               n = N_SITES[[s]])
+}
+
+#write out sites used in the qaqc
+#check if Sites_used file already present and increase numbering if needed
+sites_used_files = dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds')
+if (length(sites_used_files) == 0) {
+  write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
+} else {
+  n = sites_used_files %>%
+    path_file() %>%
+    str_extract('\\d*') %>%
+    as.integer() %>%
+    max(na.rm = T) + 1
+  n_string = n %>%
+    str_pad(2, side = 'left', pad = '0')
+  write_rds(sites_geo, path(data_pth_out, paste0(n_string,'Sites_used.rds')))
+}
+
+#extract site indexes
+met_index_xr = wrf$ll_to_xy(ncpy$Dataset(wrf_files[1]), latitude = sites_geo$latitude, longitude = sites_geo$longitude, meta = T)
+
+#set up loop and iterate safely
+iter_df = expand_grid(met_var = WRF_VARS, wrf_file = wrf_files)
+wrf_data_tlist = future_pmap(list(wrf_file_pth = iter_df$wrf_file, wrf_var = iter_df$met_var),
+                            safely(extract_wrf_var_point), code = sites_geo$code, xr_index = met_index_xr,
+                            .options = furrr_options(seed = T)) %>% 
+  transpose()
+
+is_ok <- wrf_data_tlist$error %>%
+  map_lgl(is_null)
+wrf_data_list = wrf_data_tlist$result[is_ok] %>% 
+  bind_rows() %>%
+  split(.$code)
+write_rds(wrf_data_list, path(data_pth_out, 'wrf_data_list.rds'))
+  
+  
+#calculate precip 
+wrf_data_list = bind_rows(wrf_data_list) %>% 
+  group_split(code) %>% 
+  future_map(calculate_wrf_precip) %>% 
+  map(~mutate(.x, scenario = 'mod')) 
+
+names(wrf_data_list) = wrf_data_list %>% 
+  map_chr(~pull(.x, code) %>% unique)
+
+#download observation data safely
+noaa_tlist = future_map(names(wrf_data_list), safely(importNOAA), year = yr) %>% 
+  transpose()
+
+is_ok <- noaa_tlist$error %>%
+  map_lgl(is_null)
+
+noaa_list = noaa_tlist$result[is_ok] %>% 
+  compact() %>% 
+  future_map(format_NOAA) %>% 
+  future_map(~mutate(.x, scenario = 'obs'))
+
+names(noaa_list) = noaa_list %>% 
+  map_chr(~pull(.x, code) %>% unique() %>% as.character())
+
+wrf_data_list2 = wrf_data_list[names(noaa_list)]
+
+mobs_list = reduce(c(wrf_data_list2, noaa_list), bind_rows) %>% 
+  group_split(code) %>%
+  future_map(~pivot_wider(.x, id_cols = c(date, code, var), names_from = scenario, values_from = value), .options = furrr_options(seed = T))
+
+names(mobs_list) = mobs_list %>% 
+  map_chr(~pull(.x, code) %>% unique)
+rm(wrf_data_list, wrf_data_tlist, wrf_data_list2, noaa_list, noaa_tlist)
+  
+mobs_wide = mobs_list %>%
+  future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var), values_from = c(obs, mod)), .options = furrr_options(seed = T))
+
+mobs_data_pths = path(data_pth_out, paste0(names(mobs_list), '_mod_obs'), ext = 'rds')
+future_walk2(mobs_wide, mobs_data_pths, write_rds, .options = furrr_options(seed = T))
+rm(mobs_wide)
+```
+
+``` {asis, echo = EVALUATE_MOBS || PLOT_MOBS || PLOT_MOBS_MAPS, eval = EVALUATE_MOBS || PLOT_MOBS || PLOT_MOBS_MAPS}
+# Observations
+```
+
+```{r load_collated_mobs, include=FALSE, eval = (EVALUATE_MOBS || PLOT_MOBS) && !COLLATE_MOBS}
+
+#read saved meta data
+sites_geo = map_dfr(dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds'), read_rds) %>%
+  distinct(code, .keep_all = T)
+
+#read saved mobs data
+mobs_pths = dir_ls(data_pth_out, regexp = 'mod_obs\\.rds')
+mobs_list = future_map(mobs_pths, read_rds, .options = furrr_options(seed = T)) %>%
+  future_map(mobs_to_long, .options = furrr_options(seed = T)) %>%
+  #temporary to ensure code column is never NA due to a previous bug
+  future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
+names(mobs_list) = mobs_list %>% 
+  map_chr(~pull(.x, code) %>% unique)
+```
+
+``` {asis, echo = EVALUATE_MOBS || PLOT_MOBS, eval = EVALUATE_MOBS || PLOT_MOBS}
+Hourly modelled concentrations have been compared with observations from the NOAA Integrated Surface Database. A list of used sites and their meta data is saved in **Sites_used.rds** in the **Data** subdirectory. The location of the sites is shown in the map below.
+```
+
+``` {r plot_mobs_sites_map, eval = EVALUATE_MOBS || PLOT_MOBS, fig.width = 8.4}
+if (is.null(MOBS_GROUPING_VAR)) {
+  plot_mobs_sites_map2(sites_geo, basemap = MOBS_MAP_BASEMAP, legend_label = 'Met Station', legend_title = NULL)
+} else {
+  plot_mobs_sites_map2(sites_geo, basemap = MOBS_MAP_BASEMAP, colours = MOBS_GROUPING_VAR_COLOURS,
+                       group_column = MOBS_GROUPING_VAR, legend_title = 'Met Station Type')
+}
+
+```
+
+```{r modStats, include = F, eval = (EVALUATE_MOBS || PLOT_MOBS)}
+#for modstats convert degC to K and drop precip and wd
+mobs_list2_K = mobs_list %>%
+  future_map(~filter(.x, year(date) == min(year(date)))) %>% 
+  future_map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 
+  future_map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs)))
+
+#extract the accummulated precip value using the last day data
+#this uses the format_mobs_to_plot fun and is pretty convoluted but it works
+test_mobs_acc_precip = mobs_list2_K %>% 
+  future_map(format_mobs_to_plot) %>% 
+  future_map(~filter(.x, month == -1)) %>% 
+  future_map(~unnest(.x, cols = c(data))) %>% 
+  future_map(~filter(.x, str_detect(var, 'precip'), date == max(date))) %>% 
+  future_map(~mutate(.x, var = 'precip')) %>% 
+  future_map(ungroup) %>% 
+  future_map_dfr(~select(.x, -month))
+
+#calculate modstats for each site
+test_mobs_stats = future_map(mobs_list2_K, ~filter(.x, !str_detect(var, 'precip|wd'))) %>% 
+  future_map_dfr(calculate_modstats, modstats = MODSTATS_STATS, type = c('code', 'var')) %>% 
+  group_by(var) 
+#and save by 'var'
+walk2(group_split(test_mobs_stats), pull(group_keys(test_mobs_stats)),
+      ~write_csv(.x, file = path(tables_pth_out, str_glue('Mobs_modstats_{.y}'),ext = 'csv')))
+
+test_mobs_ameans =  future_map(mobs_list2_K, ~filter(.x, !str_detect(var, 'precip|wd'))) %>% 
+  future_map_dfr(summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                 .options = furrr_options(seed = T)) %>% 
+  bind_rows(test_mobs_acc_precip)
+
+test_mobs_astats = calculate_modstats(test_mobs_ameans, modstats = MODSTATS_STATS, type = c('var'))
+
+if (!is.null(MOBS_GROUPING_VAR)) {
+  test_mobs_astats = calculate_modstats(test_mobs_ameans, modstats = MODSTATS_STATS, type = unique(c('var', MOBS_GROUPING_VAR))) %>% 
+    bind_rows(test_mobs_astats) %>% 
+    arrange(var) %>%
+    relocate(.data[[MOBS_GROUPING_VAR]], .after = var)
+}
+
+write_csv(test_mobs_astats, path(tables_pth_out, MOBS_STATS_FNAME))
+```
+
+```{r mobs_report_stats_comp, include=FALSE, eval = EVALUATE_MOBS && !is.na(REF_MOBS_DIR)}
+ref_sites_geo = read_rds(dir_ls(REF_MOBS_DIR, regexp = '(S|s)ites.*\\.rds'))
+ref_mobs_pths = dir_ls(REF_MOBS_DIR, regexp = 'mod_obs\\.rds')
+
+ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(seed = T)) %>%
+  future_map(mobs_to_long, .options = furrr_options(seed = T)) %>%
+  #temporary to ensure code column is never NA due to a previous bug
+  future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
+#for modstats convert degC to K and drop precip and wd
+ref_mobs_list2_K = ref_mobs_list %>%
+  map(~filter(.x, year(date) == min(year(date)))) %>% 
+  map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 
+  map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs))) %>% 
+  map(~filter(.x, !str_detect(var, 'precip|wd')))
+
+ref_mobs_ameans = future_map_dfr(ref_mobs_list2_K, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                                 .options = furrr_options(seed = T))
+
+test_mobs_ameans2 = test_mobs_ameans %>% 
+  filter(!is.na(obs)) %>% 
+  select(code, var)
+ref_mobs_ameans2 = ref_mobs_ameans %>% 
+  filter(!is.na(obs)) %>% 
+  select(code, var) 
+both = inner_join(test_mobs_ameans2, ref_mobs_ameans2)
+
+test_mobs_asub = semi_join(test_mobs_ameans, both, by = c('code', 'var')) %>% 
+  calculate_modstats(modstats = MODSTATS_STATS, type = c('var')) %>% 
+  select(-any_of(c('p', 'P'))) #remove significance level for this table
+ref_mobs_asub = semi_join(ref_mobs_ameans, both, by = c('code', 'var')) %>% 
+  calculate_modstats(modstats = MODSTATS_STATS, type = c('var')) %>% 
+  select(-any_of(c('p', 'P'))) #remove significance level for this table
+
+both_stats = left_join(test_mobs_asub, ref_mobs_asub, by = c('var', 'n'), suffix = c('_test', '_ref'))
+
+```
+
+``` {asis, echo = EVALUATE_MOBS, eval = EVALUATE_MOBS}
+## Model Evaluation Stats
+Model evaluation stats for all variables across all sites with data capture >= `r MOBS_THRESHOLD`% are shown in the table below.
+```
+
+``` {r mobs_report_stats, eval = EVALUATE_MOBS}
+test_mobs_astats %>% 
+  mutate(var = gt_var_labeller[as.character(var)]) %>%
+  gt() %>%
+  tab_options(data_row.padding = px(3),
+                #table.font.size = pct(95),
+                table.align='left') %>% 
+  cols_align(align = 'right',
+             columns = -var) %>% 
+  cols_align(align = 'left',
+             columns = var) %>% 
+  cols_label(var = 'Met Var') %>% 
+  fmt_number(columns = any_of(c('FAC2', 'NMB', 'r')),
+             decimals = 2) %>% 
+  fmt_number(columns = any_of(c('MB', 'RMSE')),
+             decimals = 1) %>% 
+  fmt_number(columns = any_of(c('p', 'P')),
+             decimals = 4) %>% 
+  text_transform(location = cells_body(columns = var),
+                 fn = function(x) {
+                   str_replace_all(x, '\\[', "<sub>") %>% 
+                     str_replace_all('\\]', "</sub>")
+                 }) %>% 
+  sub_missing(missing_text = '-')
+```
+
+``` {asis, echo = EVALUATE_MOBS && !is.na(REF_MOBS_DIR) && nrow(both_stats) != 0, eval = EVALUATE_MOBS && !is.na(REF_MOBS_DIR) && nrow(both_stats) != 0}
+The differences in model evaluation stats between the test and reference runs are shown in the table below. The difference has been calculated using only stations with data capture >= `r MOBS_THRESHOLD`% in both runs. The number of such sites is shown in the column labelled 'n'.
+```
+
+``` {r mobs_report_comp,  eval = EVALUATE_MOBS}
+
+if (nrow(both_stats) == 0) {
+  mobs_stats_both_gtbl = NULL
+} else {
+  gt_stat_ordered = function(n) {
+    #orders indexes for both_stats table
+    o = c(1,2)
+    out = vector('list', n)
+    for (i in 1:n) {
+      out[[i]] = c(2 + i, 2 + n + i )
+    }
+    o = c(o, list_c(out))
+  }  
+  
+  both_stats %>% 
+    .[gt_stat_ordered(length(MODSTATS_STATS) - 1)] %>% 
+    mutate(var = gt_var_labeller[as.character(var)]) %>%
+    gt() %>%
+    tab_options(data_row.padding = px(3),
+                table.align='left') %>% 
+    cols_align(align = 'right',
+               columns = -var) %>% 
+    cols_align(align = 'left',
+               columns = var) %>% 
+    cols_label(var = 'Met Var') %>%
+    fmt_number(columns = any_of(do.call(str_c, expand.grid(c('FAC2', 'NMB', 'r'), c('_test', '_ref')))),
+               decimals = 2) %>% 
+    fmt_number(columns = any_of(do.call(str_c, expand.grid(c('MB', 'RMSE'), c('_test', '_ref')))),
+               decimals = 1) %>% 
+    tab_spanner_delim(delim = '_') %>%
+    text_transform(location = cells_body(columns = var),
+                   fn = function(x) {
+                     str_replace_all(x, '\\[', "<sub>") %>% 
+                       str_replace_all('\\]', "</sub>")
+                   })
+}
+
+```
+
+```{r plot_annual_scatter_plots, eval = PLOT_MOBS && EVALUATE_MOBS, fig.width = 8.4}
+scatter_plots0 = test_mobs_ameans %>% 
+  mutate(obs = if_else(var %in% c('T2', 'td2'), obs - 273.15, obs),
+         mod = if_else(var %in% c('T2', 'td2'), mod - 273.15, mod)) %>% 
+  group_by(var)
+
+if (!is.null(MOBS_GROUPING_VAR)) {
+  scatter_plots = scatter_plots0 %>% 
+    left_join(select(sites_geo, any_of(c('code', 'site', 'station', MOBS_GROUPING_VAR)))) %>% 
+  group_split() %>% 
+  map(plot_annual_scatter, colours = MOBS_GROUPING_VAR_COLOURS, group_column = MOBS_GROUPING_VAR, facet = F) %>% 
+  set_names(pull(group_keys(scatter_plots0)))
+} else {
+  scatter_plots = scatter_plots0 %>% 
+  group_split() %>% 
+  map(plot_annual_scatter) %>% 
+  set_names(pull(group_keys(scatter_plots0)))
+}
+scatter_plots = scatter_plots[order(match(names(scatter_plots), names(gt_var_labeller)))]
+
+# 2 plots per page are hard coded, add blank plot if odd number of plots so that they are all the same size 
+if (length(scatter_plots)%%2 !=0 ) {
+  scatter_plots2 = c(scatter_plots, list(create_blank_plot()))
+} else {
+  scatter_plots2 = scatter_plots
+}
+scatter_plots_page_titles = rep(WRF_RUN_DESCRIPTOR, ceiling(length(scatter_plots2)/2))
+export = marrangeGrob(grobs = scatter_plots2, nrow = 2 , ncol = 1, top = substitute(scatter_plots_page_titles[g]))
+ggsave(filename = path(plots_pth_out, 'Annual_Mean_Scatter_all_sites.pdf'), export, paper = 'a4', height = 10, width = 7)
+```
+
+``` {asis, echo = EVALUATE_MOBS && PLOT_MOBS, eval = EVALUATE_MOBS && PLOT_MOBS}
+## Annual Mean Scatter Plots
+Annual mean scatter plots calculated from all sites with data capture >= `r MOBS_THRESHOLD`%. Solid line represents 1:1 relationship, dashed lines 1:2 and 2:1 relationships, respectively.
+```
+
+
+``` {r, eval = EVALUATE_MOBS && PLOT_MOBS, fig.width = 8.4, results = 'asis'}
+for (i in seq_along(scatter_plots)) {
+  print(scatter_plots[[i]])
+}
+rm(scatter_plots2, scatter_plots, scatter_plots0, export)
+```
+
+``` {r, eval = EVALUATE_MOBS && PLOT_MOBS_MAPS, results = 'asis'}
+cat('\n##', unname(MODSTATS_STATS_LOOKUP[MOBS_MAP_STAT]),'Maps\n')
+cat('\nData calculated for sites with observation data capture >=', MOBS_THRESHOLD, '%.\n')
+```
+
+``` {r, eval = EVALUATE_MOBS && PLOT_MOBS_MAPS, fig.width = 8.4, results = 'asis'}
+test_mobs_stats2 = test_mobs_stats %>% 
+  ungroup() %>% 
+  left_join(select(st_drop_geometry(sites_geo), 
+                   any_of(c('code', 'station', 'site', 'elev(m)', 'latitude', 'longitude', 'call' ))),
+            by = 'code')
+
+m_list0 = map(MOBS_MAP_VAR, ~filter(test_mobs_stats2, var == .x)) %>%
+  keep(~nrow(.x) > 0)
+if (length(m_list0) > 0) {
+  m_list = m_list0 %>% 
+      map(plot_mobs_stats_map, mobs_stat = MOBS_MAP_STAT[1], legend_title = MOBS_MAP_STAT[1])
+    m_titles = map_chr(MOBS_MAP_VAR, ~gt_var_labeller[.x]) %>% 
+    map_chr(.f = function(x) {
+      str_replace_all(x, '\\[', "<sub>") %>% 
+                     str_replace_all('\\]', "</sub>")
+      }) %>% 
+    map(~h3(HTML(.x)))
+  
+  htmltools::tagList(c(rbind(m_titles, m_list)))
+    
+}
+```
+
+```{r plot_mobs_tseries, include=FALSE, eval = PLOT_MOBS}
+
+#plot daily and hourly mobs per site
+mobs_plotlist = mobs_list %>%
+  future_map(~mutate(.x, date = with_tz(date, tzone = MOBS_TZONE)), .options = furrr_options(seed = T)) %>% 
+  future_map(~filter(.x, year(date) == min(year(date))), .options = furrr_options(seed = T)) %>% 
+  future_map(format_mobs_to_plot, .options = furrr_options(seed = T)) %>% 
+  future_map(left_join, select(sites_geo, code, station))
+
+mobs_plotlist %>% 
+  future_walk(mobs_tseries_to_pdf, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
+              run_title_info = WRF_RUN_DESCRIPTOR, ppp = PPP, plot_all_vars = T)
+
+#add station codes to the list items so that stations for the report can be selected from mobs_list
+names(mobs_plotlist) = mobs_plotlist %>% 
+  map_chr(~pull(.x, code) %>% unique)
+```
+
+```{r mobs_report_selected_map, eval = PLOT_MOBS && length(MOBS_STATION_REPORT_TSERIES) > 0, results='asis'}
+#select just sites that show time series in the report
+
+if (all(is.character(MOBS_STATION_REPORT_TSERIES))) {
+  sites_geo_map_sub = sites_geo %>% 
+  filter(code %in% MOBS_STATION_REPORT_TSERIES)
+} else if (all(is.numeric(MOBS_STATION_REPORT_TSERIES))) {
+  sites_geo_map_sub = sites_geo %>% 
+    filter(code %in% names(mobs_plotlist)[MOBS_STATION_REPORT_TSERIES])
+}
+
+```
+
+```{r, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0 && MOBS_STATION_REPORT_MAP == T, fig.width = 8.4, results = 'asis'}
+cat('\n\n\n\n\n## Daily means at selected sites\n\n')
+
+if (is.null(MOBS_GROUPING_VAR)) {
+  plot_mobs_sites_map2(sites_geo_map_sub, basemap = MOBS_MAP_BASEMAP, legend_label = 'Met Station', legend_title = NULL)
+} else {
+  plot_mobs_sites_map2(sites_geo_map_sub, basemap = MOBS_MAP_BASEMAP, colours = MOBS_GROUPING_VAR_COLOURS,
+                       group_column = MOBS_GROUPING_VAR, legend_title = 'Met Station Type')
+}
+
+cat('\n\n\n')
+```
+
+
+```{r, mobs_report_plot_tseries, eval = PLOT_MOBS && nrow(sites_geo_map_sub) != 0, fig.width = 10, fig.height = 18, results ='asis'}
+
+report_mobs_plotlist = mobs_plotlist[MOBS_STATION_REPORT_TSERIES] 
+
+#remove NULL tibbles from plotting
+report_mobs_plotlist = compact(report_mobs_plotlist) %>% 
+  future_map(~mutate(.x ,plots = map(data, plot_mobs_tseries),
+              var = map(plots, names)),
+      .options = furrr_options(seed = T)) %>% 
+  map(ungroup) %>% 
+  map(~filter(.x, month == -1)) %>% 
+  map(unnest, cols = c(plots, var))
+
+p_title_list = report_mobs_plotlist %>% 
+  map(~str_c(unique(.x[['code']]), ' (', unique(.x[['station']]), ')')) %>% 
+  map(replace_non_ascii) %>% 
+  map(str_replace_all, '\\.', '')
+
+for (i in seq_along(names(report_mobs_plotlist))) {
+  p_all = ggarrange(plotlist = report_mobs_plotlist[[i]]$plots, ncol = 1) #%>% 
+    #annotate_figure(top = text_grob(p_title, size = 16, face = 'bold'))
+  cat('\n\n\n### ', p_title_list[[i]], '\n')
+  print(p_all)
+  cat('\n\n\n')
+}
+
+```

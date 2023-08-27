@@ -21,7 +21,9 @@ COMPARE_EMISSIONS = T
 COMPARE_BUDGET_MSC = T
 PLOT_COMPARISON_MAPS = T
 COLLATE_MOBS = T
+EVALUATE_MOBS = T
 PLOT_MOBS = T
+PLOT_MOBS_MAPS = T
 
 # Input dirs and fnames -------------------------------------------------------------------
 ### provide ABSOLUTE paths - for OUTER (e.g. EU) and INNER (e.g. UK) domains
@@ -86,7 +88,6 @@ PRETTY_LABS = F                                                    # properly fo
 
 EMISS_DIFF_THRESHOLD = 5       # flag emission differences over this percentage
 BUDGET_DIFF_THRESHOLD = 5      # flag budget differences over this percentage
-MOBS_THRESHOLD = 75            # mobs stats calculated for sites with data capture >= MOBS_THRESHOLD 
 
 BUDGET_VARS = 'all'            # variables for budget calculations and DSC plotting 
 COMP_MAP_VARS = 'all'          # variables for comparison maps
@@ -107,8 +108,18 @@ AUTO_NETWORK = 'aurn'          # the automatic monitoring network used for obser
 # - the csv data files must have columns: 'code', 'date' (which is hour starting) and poll names as in OBSERVED_POLLS
 #   below
 
+MOBS_THRESHOLD = 75 # mobs stats calculated for sites with data capture >= MOBS_THRESHOLD
+
+MOBS_GROUPING_VAR = 'site_type_grp' # splits mobs by given var for modstats and scatter plots, set to NULL if no split wanted
+MOBS_GROUPING_VAR_COLOURS = c(Urban = '#7570b3', Rural = '#1b9e77', Industrial = '#d95f02', Road = '#e7298a', Unknown = '#666666') #set grouping var colour
+
+MOBS_TZONE = 'UTC' # timezone  MOBS time series plots are shown in. For options run OlsonNames()
 MOBS_STATION_REPORT_TSERIES = c('CHBO', 'ACTH', 'AGRN', 'KC1', 'BRS8', 'GLKP', 'MY1') # daily means of these will be plotted in the report
+
 MOBS_STATION_REPORT_MAP = T #show selected MOBS station for the report on a map
+MOBS_MAP_BASEMAP = 'world_topo' #options are c('world_topo', 'satellite', 'terrain')
+MOBS_MAP_STAT = 'MB'
+MOBS_MAP_VAR = c('no2', 'o3', 'pm2.5')
 
 OBSERVED_POLLS = c('no', 'no2', 'o3', 'ox', 'so2', 'pm10', 'pm2.5') # tested pollutants -if any other compounds added
 # their plotting params must be set in 
@@ -139,7 +150,7 @@ PPP = 4                        #plots per page for obs-mod - do NOT change (unle
 
 # output paths ------------------------------------------------------------
 
-### please do not change any paths unless you have a very good reason (there isn't one!)
+### please do not change any output paths unless you have a very good reason (there isn't one!)
 if (is.na(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
   qaqc_pth_out = dir_create(path(QAQC_DIR))
 } else {

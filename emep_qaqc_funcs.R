@@ -118,6 +118,186 @@ get_auto_data = function(site, network, pollutant, start_year, end_year, to_narr
   vs
 }
 
+get_isd_sites = function(year, CC_file = NULL) {
+  assert_choice(year, choices = 1901:2023)
+  isd_sites = read_html(str_c('https://www.ncei.noaa.gov/data/global-hourly/access/', year)) %>% 
+    html_elements('a') %>% 
+    html_text() %>% 
+    str_subset('\\.csv') %>% 
+    path_ext_remove()
+  
+  if (!is.null(CC_file)) {
+    assert_file_exists(CC_file)
+    country_codes = read_rds(CC_file)
+  } else {
+    f0 = 'https://www1.ncdc.noaa.gov/pub/data/noaa/country-list.txt'
+    country_codes =  read_csv(f0) %>%
+      set_names('dummy') %>%
+      separate_wider_delim(cols = dummy, delim = rep('          '),
+                           names = c('country_code', 'country_name')) %>%
+      distinct()
+  }
+  
+  sites_meta = getMeta(plot = F, end.year = 'all') %>%
+    mutate(code2 = str_remove(code, '-'))
+  sites_avail = sites_meta %>%
+    filter(code2 %in% isd_sites) %>%
+    select(-code2) %>%
+    left_join(country_codes, by = c('ctry' = 'country_code')) %>%
+    rename(country_code = ctry) %>%
+    relocate(country_name, .before = country_code)
+  
+  sites_avail
+}
+
+sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
+  #samples sites from a tibble with site meta data
+  #type  - sf, random, stratified, manual, subset 
+  
+  #selector arg is dependent on type arg
+  #if type is 'sf' selector must be either an sf polygon(s) or a path to a geospatial file containing such polygons
+  #if type is 'random' selector is redundant but n (number of sites) must be given
+  #if type is 'stratified' selector is a name of a grouping column in meta_df and n the number of sites
+  #if type is 'subset' selector is either 'airport' (extracts airports) or a subsetting expression -e.g. expression(latitude > 50)
+  #if type is 'manual' selector is either a vector of site codes or a path to an rds file with a dataframe which has a column 'code'
+
+  assert_choice(type, c('sf', 'random', 'stratified', 'subset', 'manual'), null.ok = T)
+  
+  if (is.null(type)) {
+    return(meta_df)
+  }
+  
+  if ('sf' %in% type) {
+    assert(check_class(selector, 'sf'),
+           check_file_exists(selector))
+    assert_choice('code', names(meta_df))
+    meta_df2 = meta_df %>% 
+      st_as_sf(coords = c('longitude', 'latitude'), crs = 4326)
+    
+    
+    if(file_exists(selector)) {
+      selector = st_read(selector)
+    }
+    
+    if (st_crs(selector) != st_crs(meta_df2)) {
+      selector = selector %>% 
+        st_transform(crs = st_crs(meta_df2))
+    }
+    meta_df2 = meta_df2 %>% 
+      st_filter(selector) %>% 
+      st_drop_geometry()
+    meta_df = meta_df %>% 
+      semi_join(select(meta_df2, code))
+  } else if ('random' %in% type) {
+    assert_count(n, positive = T)
+    meta_df = meta_df %>% 
+      slice_sample(n = n)
+  } else if ('stratified' %in% type) {
+    assert_choice(selector, names(meta_df))
+    n_groups = n_distinct(meta_df[[selector]])
+    
+    meta_df = meta_df %>% 
+      slice_sample(n = ceiling(n/n_groups), by = one_of(selector)) %>% 
+      slice_sample(n = n)
+  } else if ('manual' %in% type) {
+    assert(check_choice('code', names(meta_df)),
+           check_file_exists(selector),
+           check_character(selector))
+    if (file_exists(selector)) {
+      selector = read_rds(selector) %>% 
+        pull(code)
+    }
+    meta_df = meta_df %>% 
+      filter('code' %in% selector)
+  } else if ('subset' %in% type) {
+    if (is.expression(selector)) {
+      meta_df = meta_df %>% 
+        filter(eval(selector))
+    } else if('airport' %in% selector) {
+      meta_df = meta_df %>% 
+        filter(!is.na(call))
+    } else {
+    }
+  }
+  
+  meta_df
+}
+
+extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index) {
+  
+  wrf_file = ncpy$Dataset(wrf_file_pth)
+  #get dttm from file
+  date = wrf_file %>%
+    wrf$extract_times(timeidx = wrf$ALL_TIMES)
+  if (wrf_var %in% c('ws', 'wd')) {
+    u_v = wrf_file %>% 
+      wrf$getvar('uvmet10', timeidx = wrf$ALL_TIMES)
+    u = u_v$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'u') %>% 
+      wrf$to_np()
+    v = u_v$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'v') %>% 
+      wrf$to_np()
+    if (wrf_var == 'ws') {
+      value = sqrt(u*u + v*v)
+    } else {
+      value = atan2(u,v) * (180/pi) + 180
+    }
+   
+    # value = wrf_file %>% 
+    #   wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
+    # value = value$sel(south_north = xr_index[1], west_east = xr_index[0], wspd_wdir = 'wspd')
+  # } else if (wrf_var == 'wd') {
+  #   value = wrf_file %>% 
+  #     wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
+  #   value = value$sel(south_north = xr_index[1], west_east = xr_index[0], wspd_wdir = 'wdir')
+  } else if (wrf_var == 'u') {
+    value = wrf_file %>% 
+      wrf$getvar('uvmet10', timeidx = wrf$ALL_TIMES)
+    value = value$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'u')
+  } else if (wrf_var == 'v') {
+    value = wrf_file %>% 
+      wrf$getvar('uvmet10', timeidx = wrf$ALL_TIMES)
+    value = value$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'v')
+  } else {
+    value = wrf_file %>% 
+      wrf$getvar(wrf_var, timeidx = wrf$ALL_TIMES)
+    value = value$sel(south_north = xr_index[1], west_east = xr_index[0])
+  }
+  
+  value = value %>% 
+    wrf$to_np()
+  
+  #convert air temp to degC
+  if(wrf_var == 'T2') {
+    value = value - 273.15
+  }
+  #in case just one datetime redimension the vector to matrix
+  if(length(date) == 1) {
+    value = t(value)
+  }
+  #in case data for just one site 
+  if (length(code) == 1){
+    value = t(t(value))
+  }
+  #combine date, wrf_var and extracted data into a long tibble
+  value = value %>% 
+    as_tibble(.name_repair = 'minimal') %>%
+    set_names(code) 
+  wrf_var = rep(wrf_var, length(date))
+  
+  dframe = tibble(date, wrf_var, value) %>% 
+    pivot_longer(cols = -c(date, wrf_var), names_to = 'code', values_to = 'value')
+}
+
+calculate_wrf_precip = function(wrf_frame) {
+  #calculates hourly precip in mm from RAINC and RAINCC
+  wrf_frame = wrf_frame %>% 
+    pivot_wider(id_cols = c(date, code), names_from = wrf_var, values_from = value) %>% 
+    mutate(precip = RAINNC + RAINC,
+           precip = precip -lag(precip)) %>% 
+    select(-RAINNC, -RAINC) %>% 
+    pivot_longer(cols = c(-date, -code), names_to = 'var', values_to = 'value')
+}
+
 compare_file_size = function(test_dir, ref_dir) {
   
   ###tests if domains of test and ref match - temporarily disabled because of Tomas's uEMEP directory
@@ -212,10 +392,10 @@ calc_budget = function(stars_object, evp_list) {
 }
 
 
-collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_index = NA_integer_,
-                           j_index = NA_integer_, network = 'aurn', pollutant = 'no2') {
+collate_obs_mod_nc = function(nc_pth, var_name_lookup, site_code = 'MY1', i_index = NA_integer_,
+                           j_index = NA_integer_, network = 'aurn', var = 'no2') {
   
-  #poll_name_lookup needs to be format: obs_name = EMEP_var_name (e.g. no2 = 'SURF_ug_NO2')
+  #var_name_lookup needs to be format: obs_name = EMEP_var_name (e.g. no2 = 'SURF_ug_NO2')
   #network is either one of supported networks from Ricardo servers or a full path to the observation file
   
   nc = nc_open(nc_pth)
@@ -228,7 +408,7 @@ collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_ind
   
   nc_year = unique(year(nc_date$date))
   
-  var = unname(poll_name_lookup[str_to_lower(pollutant)])
+  var = unname(var_name_lookup[str_to_lower(var)])
   
   mod_data = ncvar_get(nc,
                        varid = var,
@@ -247,15 +427,15 @@ collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_ind
     obs_data = tryCatch(
       error = function(cnd) NULL,
       read_csv(network) %>%
-        select(date, !!pollutant) %>%
-        rename(obs = !!pollutant)
+        select(date, !!var) %>%
+        rename(obs = !!var)
     )
   } else {
     #return NULL if pollutant not measured at auto site on Ricardo servers
     obs_data = tryCatch(
       error = function(cnd) NULL,
       
-      get_auto_data(site = site_code, network = network, pollutant = str_to_lower(pollutant),
+      get_auto_data(site = site_code, network = network, pollutant = str_to_lower(var),
                     start_year = min(nc_year), end_year = max(nc_year), to_narrow = T) %>%
         select(-code) %>% 
         rename(obs = conc)
@@ -267,14 +447,13 @@ collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_ind
       #if missing data in observations there will be na values in code and pollutant columns after joining
       #the mutate function makes sure the na values are replaced
       mutate(code = !!site_code,
-             pollutant = !!pollutant) %>%
+             var = !!var) %>%
       relocate(mod, .after = obs)
   } else {
-    log_warn('No data for {pollutant} at {site_code}')
-    #print(paste0('No data for ', pollutant, ' at ', site_code, ' (', network, ')')) #keep track of what's missing
+    log_warn('No data for {var} at {site_code}')
     both = mod_data %>%
       mutate(code = !!site_code,
-             pollutant = !!pollutant,
+             var = !!var,
              obs = NA_real_,
              .before = mod)
   }
@@ -282,80 +461,6 @@ collate_obs_mod_nc = function(nc_pth, poll_name_lookup, site_code = 'MY1', i_ind
   nc_close(nc)
   both
 }
-
-collate_obs_mod_stars = function(site_geo_df, emep_pth, poll_lookup, emep_crs = EMEP_CRS,
-                            time_marker = NULL) {
-  #site_geo_df MUST be a 1-row sf object (e.g. created by the split function)
-  
-  if (nrow(site_geo_df) != 1) stop('site_geo_df can only have one row')
-  
-  print(site_geo_df$code) #to check on progress whilst testing
-  
-  poll_lookup_rev = names(poll_lookup) %>% 
-    set_names(poll_lookup)
-  
-  if (st_crs(site_geo_df) != emep_crs) {
-    site_geo_df = st_transform(site_geo_df, emep_crs)
-  }
-
-  #get the site's pollutants for extraction
-  emep_vars = extract_nc_vars(emep_pth)
-  modelled_vars = base::intersect(poll_lookup, emep_vars)
-  
-  modelled = read_stars(emep_pth, sub = modelled_vars, proxy = T) %>% 
-    st_set_crs(emep_crs) %>% 
-    st_extract(site_geo_df) %>% 
-    as_tibble() %>% 
-    select(-geometry) %>% 
-    mutate(across(-time, ~as.double(.x)),
-           across(matches('ppb_O3'), ~.x * 2)) %>%  #convert to ug/m3
-    pivot_longer(-time, names_to = 'poll', values_to = 'conc') %>%
-    mutate(poll = str_c('mod_', poll_lookup_rev[poll])) %>%
-    pivot_wider(id_cols = time, names_from = poll, values_from = conc) %>% 
-    rename(date = time) %>% 
-    mutate(date = floor_date(date, 'hour'))
-
-  #add ox if both o3 and no2 present
-  if (all(c('mod_o3', 'mod_no2') %in% names(modelled))) {
-    modelled = modelled %>% 
-      mutate(mod_ox = mod_o3 + mod_no2)
-  }
-  
-  mod_year = unique(year(modelled$date))
-  
-  observed = tryCatch(
-    error = function(cnd) NULL,
-    
-    get_auto_data(site = site_geo_df$code, network = site_geo_df$network, pollutant = unname(poll_lookup_rev[modelled_vars]),
-                  start_year = mod_year, end_year = mod_year, to_narrow = T) %>%
-      mutate(pollutant = str_c('obs_', pollutant)) %>% 
-      pivot_wider(id_cols = c(date, code), names_from = pollutant, values_from = conc)
-  )
-  
-  if(!is.null(observed)) {
-    if (all(c('obs_o3', 'obs_no2') %in% names(observed))) {
-      observed = observed %>% 
-        mutate(obs_ox = obs_o3 + obs_no2) 
-    }
-    
-    mod_obs = left_join(modelled, observed, by = 'date') %>% 
-      select(date, code, everything())
-    return(mod_obs)
-    
-  } else {
-    return(NULL)
-  }
-  
-  # if (save_data == T) {
-  #   write_rds(mod_obs, path(data_pth_out, paste0(auto_site_code, '_mod_obs.rds')))
-  # }
-  # 
-  # if (save_plots == T) {
-  #   site_time_series_pdf2(auto_site_code, auto_site_meta, merged_df = mod_obs, run_title_info = run_info)
-  # }
-  # 
-}
-
 
 calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
                                outer_test_fname = NA, outer_ref_fname = NA,
@@ -490,7 +595,7 @@ read_RunLog_emissions = function(RunLog_pth) {
   
   RL_tables = map2_dfr(t_start, t_lengths, read_RunLog_tables) %>% 
     group_by(CC, Land) %>% 
-    summarise(across(.fns = ~sum(.x, na.rm = T))) %>% 
+    summarise(across(.cols = everything(), .fns = ~sum(.x, na.rm = T))) %>% 
     ungroup()
   
   RL_tables
@@ -571,21 +676,60 @@ compare_inv_mod_emissions = function(model_run_dir, emiss_inv_pth, save_file = T
   
 }
 
-summarise_mobs = function(mobs_lframe, pollutant = 'all', avg_time = 'day',
-                             summary_stat = 'mean', data_thresh = 75) {
+summarise_mobs = function(mobs_lframe, var = 'all', avg_time = 'day',
+                          summary_stat = 'mean', data_thresh = 75) {
   
   #mobs_lframe is mobs dataframe in the long format
   mobs = mobs_lframe %>% 
-    timeAverage(avg.time = avg_time, data.thresh = data_thresh, type = c('code', 'pollutant')) %>% 
+    timeAverage(avg.time = avg_time, data.thresh = data_thresh, type = c('code', 'var'), statistic = summary_stat) %>% 
     ungroup() %>% 
     mutate(across(where(is.factor), ~as.character(.x)))
   
-  if (pollutant != 'all') {
+  if (var != 'all') {
     mobs = mobs %>% 
-      filter(pollutant %in% !!pollutant)
+      filter(var %in% !!var)
   }
   mobs
   
+}
+
+calculate_modstats = function(dframe, modstats = MODSTATS_STATS, type = 'default', pretty_format = T) {
+  #workaround for modStats crashing when calculating r if n < 3
+  #if pretty_format == T the output is rounded to two or one decimal place depending on stat
+  
+  if(is.null(type)) type = 'default' #modstats doesn't accept NULL in type
+  type = compact(type)
+  
+  if ('r' %in% modstats) {
+    modstats2 = setdiff(modstats, 'r')
+    modstats2 = c('n', modstats2) %>% #make sure n is in modstats2
+      unique()
+    
+    mobs_stats = modStats(dframe, statistic = modstats2, type = type)
+    
+    ms_var = mobs_stats %>%
+      group_by(across(all_of(type))) %>% 
+      filter(n > 2) %>%
+      ungroup() %>% 
+      select(all_of(type))
+    
+    if (nrow(ms_var) > 0) {
+      mobs_stats = dframe %>% 
+        semi_join(ms_var) %>% 
+        modStats(statistic = 'r', type = type) %>% 
+        left_join(mobs_stats, .) %>% 
+        mutate(across(where(is.factor), ~as.character(.x)))
+    }
+  }
+  
+  if (pretty_format == T) {
+    mobs_stats = mobs_stats %>% 
+      mutate(across(any_of(c('FAC2', 'NMB', 'r')), ~round(.x, 2)),
+             across(any_of(c('MB', 'RMSE')), ~round(.x, 1)),
+             across(any_of(c('p', 'P')), ~round(.x, 4)))
+  }
+  
+  mobs_stats
 }
 
 add_ox = function(site_dframe, df_format = c('long', 'wide'), units = 'ug/m3') {
@@ -594,23 +738,23 @@ add_ox = function(site_dframe, df_format = c('long', 'wide'), units = 'ug/m3') {
   if (all(df_format == 'wide')) {
     site_dframe = mobs_to_long(site_dframe)
   }
-  if (all(c('no2', 'o3') %in% unique(site_dframe$pollutant))) {
+  if (all(c('no2', 'o3') %in% unique(site_dframe$var))) {
     site_dframe_ox = site_dframe %>%
-      filter(pollutant %in% c('no2', 'o3')) %>%
-      pivot_wider(id_cols = c(date, code), names_from = pollutant, values_from = c(obs, mod))
+      filter(var %in% c('no2', 'o3')) %>%
+      pivot_wider(id_cols = c(date, code), names_from = var, values_from = c(obs, mod))
     
     if (units == 'ug/m3') {
       site_dframe_ox = site_dframe_ox %>% 
-        mutate(pollutant = 'ox',
+        mutate(var = 'ox',
                obs = obs_o3 + obs_no2,
                mod = mod_o3 + mod_no2) %>%
-        dplyr::select(date, code, pollutant, obs, mod)
+        dplyr::select(date, code, var, obs, mod)
     } else if (units == 'ppb') {
       site_dframe_ox = site_dframe_ox %>%
-        mutate(pollutant = 'ox(ppb)',
+        mutate(var = 'ox(ppb)',
                obs = obs_o3/2 + obs_no2/1.9125,
                mod = mod_o3/2 + mod_no2/1.9125) %>%
-        dplyr::select(date, code, pollutant, obs, mod)
+        dplyr::select(date, code, var, obs, mod)
     } else {
       stop('Units for Ox calculation can either be "ppb" or "ug/m3"')
     }
@@ -622,6 +766,137 @@ add_ox = function(site_dframe, df_format = c('long', 'wide'), units = 'ug/m3') {
 
   }
   site_dframe
+}
+
+sum_precip = function(mobs_frame, frame_format = 'long') {
+  #problematic due to inconsistencies in historic obs data, do not use
+  if (frame_format == 'long') {
+    mobs_frame = mobs_frame %>% 
+      pivot_wider(id_cols = c(date, code), names_from = c(var, scenario), values_from = value)
+  }
+  
+  if ('precip_12_obs' %in% names(mobs_frame)) {
+    mobs_precip = mobs_frame %>% 
+      select(date, code, precip_mod, precip_12_obs)
+    precip_dates = mobs_precip %>% 
+      drop_na() %>% 
+      pull(date)
+    mobs_precip = mobs_precip %>% 
+      mutate(date = ceiling_date(date, precip_dates)) %>% 
+      group_by(date, code) %>% 
+      summarise(n = n(),
+                precip12_mod = sum(precip_mod, na.rm = T),
+                precip12_obs = sum(precip_12_obs, na.rm = T)) %>% 
+      ungroup() %>% 
+      filter(n == 12) %>% 
+      select(-n)
+    
+    mobs_frame = mobs_frame %>% 
+      select(-matches('precip')) %>% 
+      left_join(mobs_precip, by = c('date', 'code'))
+  } else if ('precip_6_obs' %in% names(mobs_frame)) {
+    mobs_precip = mobs_frame %>% 
+      select(date, code, precip_mod, precip_6_obs)
+    precip_dates = mobs_precip %>% 
+      drop_na() %>% 
+      pull(date)
+    mobs_precip = mobs_precip %>% 
+      mutate(date = ceiling_date(date, precip_dates)) %>% 
+      group_by(date, code) %>% 
+      summarise(n = n(),
+                precip6_mod = sum(precip_mod, na.rm = T),
+                precip6_obs = sum(precip_6_obs, na.rm = T)) %>% 
+      ungroup() %>% 
+      filter(n == 6) %>% 
+      select(-n)
+    
+    mobs_frame = mobs_frame %>% 
+      select(-matches('precip')) %>% 
+      left_join(mobs_precip, by = c('date', 'code'))
+  }
+  mobs_frame = mobs_frame %>% 
+    pivot_longer(c(-date, -code), names_to = 'var', values_to = 'value') %>% 
+    separate(var, into = c('var', 'scenario'), sep = '_') %>% 
+    pivot_wider(id_cols = c(date, code, var), names_from = scenario, values_from = value)
+  
+  mobs_frame
+}
+
+format_NOAA = function(NOAA_frame) {
+  met_var_lookup = c(air_temp = 'T2',
+                     dew_point  = 'td2',
+                     atmos_pres = 'slp', 
+                     RH = 'rh2')
+  NOAA_frame = NOAA_frame %>% 
+    select(any_of(c('date', 'code', 'air_temp', 'dew_point', 'atmos_pres',
+                    'ws', 'wd', 'RH', precip =  'precip_12'))) %>% 
+    pivot_longer(cols = c(-date, -code), names_to = 'var', values_to = 'value') %>% 
+    mutate(var = if_else(var %in% names(met_var_lookup), met_var_lookup[var], var))
+  
+}
+
+format_mobs_to_plot = function(mobs_lframe) {
+  #creates a nested tibble with daily means for the full year (month == -1) and
+  #separate hourly data for each month
+  #this format is needed to plot annual and monthly time series plots
+  
+  #discard data from the subsequent year (e.g. in wrf modelling)
+  mobs_lframe = mobs_lframe %>% 
+    filter(year(date) == min(year(date)))
+
+  #for precip data we use cumulative sum
+  precip_data = mobs_lframe %>% 
+    filter(str_detect(var, 'precip'))
+  
+  if (nrow(precip_data) > 0) {
+    #cumsum calculation helper
+    calculate_cumsum = function(mobs_dframe) {
+      if (all(is.na(mobs_dframe[['obs']]))) {
+        mobs_dframe = mobs_dframe %>% 
+          mutate(obs = NA_real_) 
+      } else {
+        mobs_dframe = mobs_dframe %>% 
+          mutate(obs = cumsum(replace_na(obs, 0)))
+      }
+      mobs_dframe = mobs_dframe %>% 
+        mutate(mod = cumsum(replace_na(mod, 0)))
+      mobs_dframe
+    }
+    
+    precip_y = precip_data %>% 
+      mutate(date = floor_date(date, 'day')) %>% 
+      group_by(code, var, date) %>% 
+      #when summarising, output NA if all values are NA, in all other cases remove NAs
+      summarise(obs = ifelse(all(is.na(obs)), NA_real_, sum(obs, na.rm = T)),
+                mod = sum(mod, na.rm = T)) %>% 
+      ungroup() %>% 
+      calculate_cumsum() %>% 
+      mutate(month = -1)
+    
+    precip_m = precip_data %>% 
+      group_by(code, var, month = month(date)) %>% 
+      nest() %>% 
+      mutate(data = map(data, calculate_cumsum)) %>% 
+      unnest(col = data) %>% 
+      ungroup()
+    
+    precip_data = bind_rows(precip_y, precip_m)
+    
+    mobs_lframe = mobs_lframe %>% 
+      filter(str_detect(var, 'precip', negate = T))
+    
+  }
+  
+  data_daily_means = mobs_lframe %>% 
+    summarise_mobs() %>% 
+    mutate(month = -1)
+  mobs_out = mobs_lframe %>% 
+    mutate(month = month(date)) %>% 
+    bind_rows(data_daily_means, precip_data) %>%
+    group_by(code, month) %>% 
+    nest() %>% 
+    arrange(month)
+  mobs_out
 }
 
 
@@ -924,6 +1199,178 @@ plot_DSC = function(stars_object, evp_list, palette_dir = PALETTE_DIR, pretty_la
   DSC_plotlist
 }
 
+plot_mobs_tseries = function(dframe) {
+  #plots a time series of a tibble which has obs and mod as columns
+  #outputs a list of plots for each 'var' in dframe
+  plot_vars = dframe %>% 
+    distinct(var) %>% 
+    pull()
+  
+  out_list = vector('list', length(plot_vars))
+  for (i in seq_along(plot_vars)) {
+    plot_var = plot_vars[i]
+    tbl_sub = dframe %>% 
+      filter(var == plot_var)
+    
+    dc_obs = sum(!is.na(tbl_sub$obs)) #calculate observation data capture
+    #determine time res and time span of data to select appropriate datetime breaks and labels
+    dates = tbl_sub %>% 
+      pull(date)
+    data_res = dates %>%
+      int_diff() %>% 
+      int_length() %>% 
+      unique()
+    data_span = interval(dates[1], last(dates)) %>% 
+      int_length()
+    
+    if (data_res <= 3600) {
+      if (data_span <= 86400 * 7) {
+        date_breaks = '12 hours'
+        date_labels = '%e %b %H:%M'
+      } else if (data_span <= 86400 * 14) {
+        date_breaks = '1 day'
+        date_labels = '%e %b'
+      } else if (data_span <= 86400 * 32) {
+        date_breaks = '2 days'
+        date_labels = '%e'
+      } else {
+        date_breaks = '1 week'
+        date_labels = '%e %b'
+      }
+    } else {
+      date_breaks = '1 month'
+      date_labels = '%b'
+    } 
+    
+    if (plot_var == 'slp') {
+      ymin = min(tbl_sub$obs, na.rm = T) 
+    } else {
+      ymin = 0
+    }
+    
+    tbl_sub2 = tbl_sub %>% 
+      mutate(ymin = ymin,
+             var = as.character(var)) %>% 
+      pivot_longer(obs:mod, names_to = 'scenario', values_to = 'conc')
+    
+    #for correct labelling of the plot strips (won't accept myquicktext) - accepts named vector
+    label_vector = OBS_VAR_PARAMS_LIST[[plot_var]][['lab_unit']] %>% 
+      set_names(plot_var)
+    
+    
+    if (dc_obs == 0) {
+      p = ggplot()
+      
+    } else {
+      p = ggplot() +
+        geom_ribbon(data = filter(tbl_sub2, scenario == 'obs'),
+                    aes(date, ymin = ymin, ymax = conc, fill = scenario), color = NA, alpha = 0.9) +
+        scale_fill_manual(values = c(obs = unname(OBS_VAR_PARAMS_LIST[[plot_var]][['var_fill']])),
+                          labels = c(obs = 'Observed'), guide = guide_legend(override.aes = list(size = 3)))
+    }
+    
+    p = p +
+      geom_line(data = filter(tbl_sub2, scenario == 'mod'),
+                aes(date, conc, color = scenario), linewidth = 0.3) +
+      scale_x_datetime(date_breaks = date_breaks, date_labels = date_labels, expand = expansion(c(0,0))) +
+      scale_color_manual(values = c(mod = unname(OBS_VAR_PARAMS_LIST[[plot_var]][['var_col']])),
+                         labels = c(mod = 'Modelled'), guide = guide_legend(override.aes = list(size = .75))) +
+      labs(x = NULL,
+           y = NULL) +
+      facet_wrap(~var, strip.position = 'left',
+                 labeller = as_labeller(label_vector, default = label_parsed)) +
+      theme_bw() +
+      theme(strip.placement = 'outside',
+            strip.background = element_rect(fill = unname(OBS_VAR_PARAMS_LIST[[plot_var]][['var_fill']])),
+            panel.grid.minor = element_blank(),
+            panel.grid.major = element_line(linewidth = 0.1),
+            axis.ticks = element_line(linewidth = 0.1),
+            legend.title = element_blank(),
+            legend.direction = 'horizontal',
+            legend.position = c(0.5, 0.9),
+            legend.box = 'horizontal',
+            legend.box.background = element_rect(fill = 'transparent', color = 'transparent'),
+            legend.background = element_rect(fill = 'transparent'),
+            legend.key = element_rect(fill = 'transparent'),
+            legend.key.height = unit(0.5, 'lines'))
+    
+    #adjust y_scale params
+    y_params_default = list(breaks = waiver(),
+                            labels = function(x) {str_pad(x, width = 4, side = 'left', pad = ' ')},
+                            expand = expansion(mult = c(0, 0.15), add = c(0, 0)),
+                            limits = NULL)
+    y_params_var = list('wd' = list(breaks = c(0, 90, 180, 270, 360),
+                                    limits = c(0, 390)),
+                        'rh2' = list(breaks = seq(0,100,20),
+                                     limits = c(0, 110)))
+    
+    if (plot_var %in% names(y_params_var)) {
+      y_params_intersect = intersect(names(y_params_default), names(y_params_var[[plot_var]]))
+      y_params = y_params_default
+      for (j in seq_along(y_params_intersect)) {
+        y_params[[y_params_intersect[j]]] = y_params_var[[plot_var]][[y_params_intersect[j]]]
+      }
+    } else {
+      y_params = y_params_default
+    }
+    
+    if (dc_obs == 0) {
+      p = p +
+        labs(caption = '* No observations during the period shown.') +
+        theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
+              plot.caption = element_text(size = 8))
+      
+      modelled_min = tbl_sub2 %>%
+        filter(scenario == 'mod') %>%
+        summarise(mod_min = min(conc, na.rm = T)) %>%
+        pull()
+      
+      if (modelled_min > 0) {
+        if (plot_var == 'slp') {
+          
+        } else {
+          p = p +
+            scale_y_continuous(breaks = y_params[['breaks']],
+                               labels = y_params[['labels']],
+                               expand = y_params[['expand']],
+                               limits = c(0, ifelse(is.null(y_params[['limits']]), NA, y_params[['limits']][2])))
+        }
+        
+      } else {
+        p = p +
+          scale_y_continuous(breaks = y_params[['breaks']],
+                             labels = y_params[['labels']],
+                             expand = y_params[['expand']],
+                             limits = c(modelled_min, ifelse(is.null(y_params[['limits']]), NA, y_params[['limits']][2])))
+      }
+      
+    } else {
+      p = p +
+        scale_y_continuous(breaks = y_params[['breaks']],
+                           labels = y_params[['labels']],
+                           expand = y_params[['expand']],
+                           limits = y_params[['limits']]) +
+        #plot a transparent caption so that the plots are the same size with or without caption text
+        labs(caption = 'No observations during the period shown.') +
+        theme(plot.caption = element_text(color = 'transparent',
+                                          size = 8))
+    }
+    
+    if (plot_var %in% c('precip', 'precip6', 'precip12')) {
+      precip_label = textGrob(label = 'Data shown are a cummulative sum.',
+                              x = 0.99, y = 0.02,
+                              just = c('right', 'bottom'),
+                              gp = gpar(fontsize = 8))
+      p = p +
+        annotation_custom(precip_label, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)
+    }
+    
+    out_list[[i]] = p
+  }
+  names(out_list) = plot_vars
+  out_list
+}
+
 plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold = 0.75) {
   #plots time series of observed and modelled concentrations
   #if time_res is 'day' the whole (annual) dataframe is used but only days with data
@@ -931,23 +1378,23 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
   #if time_res is 'hour', only one month which must be specified by the 'month' kwarg is plotted
   #both abbreviated and full month names are allowed
   
-  poll = unique(dframe$pollutant)
+  var = unique(dframe$var)
   dc_obs = sum(!is.na(dframe$obs)) #calculate observation data capture
   
   if (time_res == 'day') {
     dframe = dframe %>% 
-      timeAverage(data.thresh = dc_threshold * 100, type = c('code', 'pollutant')) %>% 
+      timeAverage(data.thresh = dc_threshold * 100, type = c('code', 'var')) %>% 
       ungroup()
     date_breaks = '1 month'
     date_labels = '%b'
-    plt_name = str_c(unique(dframe$code), poll, 'year', sep = '_')
+    plt_name = str_c(unique(dframe$code), var, 'year', sep = '_')
   } else if (time_res == 'hour' & str_to_title(month) %in% c(month.abb, month.name)) {
     month_num = coalesce(match(month, month.name), match(month, month.abb))
     dframe = dframe %>% 
       filter(month(date) == month_num)
     date_breaks = '2 days'
     date_labels = '%e'
-    plt_name = str_c(unique(dframe$code), poll, month.abb[month_num], sep = '_')
+    plt_name = str_c(unique(dframe$code), var, month.abb[month_num], sep = '_')
   } else {
     stop('Time_res must be either "day" or "hour". If the latter a month name (e.g. "Jan" or "January") must be provided.')
   }
@@ -955,12 +1402,12 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
   
   df2 = dframe %>% 
     mutate(ymin = 0,
-           pollutant = as.character(pollutant)) %>% 
+           var = as.character(var)) %>% 
     pivot_longer(obs:mod, names_to = 'scenario', values_to = 'conc')
   
   #for correct labelling of the plot strips (won't accept myquicktext) - accepts named vector
-  label_vector = OBS_VAR_PARAMS_LIST[[poll]][['lab_unit']] %>% 
-    set_names(poll)
+  label_vector = OBS_VAR_PARAMS_LIST[[var]][['lab_unit']] %>% 
+    set_names(var)
   
   if (dc_obs == 0) {
     p = ggplot()
@@ -969,7 +1416,7 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
     p = ggplot() +
       geom_ribbon(data = filter(df2, scenario == 'obs'),
                   aes(date, ymin = ymin, ymax = conc, fill = scenario), color = NA, alpha = 0.9) +
-      scale_fill_manual(values = c(obs = unname(OBS_VAR_PARAMS_LIST[[poll]][['poll_fill']])),
+      scale_fill_manual(values = c(obs = unname(OBS_VAR_PARAMS_LIST[[var]][['var_fill']])),
                         labels = c(obs = 'Observed'), guide = guide_legend(override.aes = list(size = 3)))
   }
   
@@ -977,18 +1424,18 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
     geom_line(data = filter(df2, scenario == 'mod'),
               aes(date, conc, color = scenario), size = 0.3) +
     scale_x_datetime(date_breaks = date_breaks, date_labels = date_labels, expand = expansion(c(0,0))) +
-    scale_color_manual(values = c(mod = unname(OBS_VAR_PARAMS_LIST[[poll]][['poll_col']])),
+    scale_color_manual(values = c(mod = unname(OBS_VAR_PARAMS_LIST[[var]][['var_col']])),
                        labels = c(mod = 'Modelled'), guide = guide_legend(override.aes = list(size = .75))) +
     labs(x = NULL,
          y = NULL) +
-    facet_wrap(~pollutant, strip.position = 'left',
+    facet_wrap(~var, strip.position = 'left',
                labeller = as_labeller(label_vector, default = label_parsed)) +
     theme_bw() +
     theme(strip.placement = 'outside',
-          strip.background = element_rect(fill = unname(OBS_VAR_PARAMS_LIST[[poll]][['poll_fill']])),
+          strip.background = element_rect(fill = unname(OBS_VAR_PARAMS_LIST[[var]][['var_fill']])),
           panel.grid.minor = element_blank(),
-          panel.grid.major = element_line(size = 0.1),
-          axis.ticks = element_line(size = 0.1),
+          panel.grid.major = element_line(linewidth = 0.1),
+          axis.ticks = element_line(linewidth = 0.1),
           legend.title = element_blank(),
           legend.direction = 'horizontal',
           legend.position = c(0.5, 0.9),
@@ -1046,8 +1493,399 @@ plot_mobs_sites_map = function(sites_df) {
   m
 }
 
+#this has been taken from stackoverflow regarding making the legend key to be round circles like the symbols
+# it needs more work os currently not used
+addLegendCustom <- function(map, colors, labels, sizes, opacity = 1){
+  colorAdditions <- paste0(colors, "; border-radius: 50%; width:", sizes, "px; height:", sizes, "px")
+  labelAdditions <- paste0("<div style='display: inline-block;height: ", sizes, "px;margin-top: 4px;line-height: ", sizes, "px;'>", labels, "</div>")
+  
+  return(addLegend(map, colors = colorAdditions, labels = labelAdditions, opacity = opacity))
+}
+
+
+plot_mobs_sites_map2 = function(sites_df, basemap = c('world_topo', 'satellite', 'terrain'), colours = '#7570b3',
+                               group_column = NA, legend_label = '', legend_title = 'Legend') {
+  #if group_column isn't na then colours are is a named vector of colours with names the values in group_column
+  info_vars0 = c('code', 'station', 'site', group_column, 'network', 'elev(m)', 'year') 
+  info_vars = info_vars0 %>% 
+    str_to_sentence() %>% 
+    set_names(nm = info_vars0)
+  info_vars = base::intersect(names(info_vars), names(sites_df)) %>% 
+    info_vars[.]
+  
+  content = map2(info_vars, names(info_vars), ~str_c('<b>', .x, ':</b> ', sites_df[[.y]])) %>% 
+    transpose() %>% 
+    stringi::stri_join_list(sep = '<br/>')
+  
+  
+  m = leaflet(data = sites_df)
+  
+  #select tile type
+  if (basemap[1] == 'satellite') {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldImagery)
+  } else if (basemap[1] == 'terrain') {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldTerrain)
+  } else {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldTopoMap)
+  }
+  
+  
+  if (is.na(group_column)) {
+    m = m %>% 
+      addCircleMarkers(color = colours[1], opacity = 0.8, popup = content,
+                       radius = 5, fill = F, weight = 3) %>% 
+      addLegend('topright', colors = colours[1],
+                opacity = 1, labels = legend_label, title = legend_title)
+  } else {
+    pal = colorFactor(palette = colours, domain = names(colours), ordered = T)
+    m = m %>% 
+      addCircleMarkers(color = pal(sites_df[[group_column]]), opacity = 0.8, popup = content,
+                       radius = 5, fill = F, weight = 3) %>%
+      addLegend('topright', pal = pal, values = sites_df[[group_column]],
+                opacity = 1, title = legend_title)
+  }
+  
+  m
+}
+
+plot_mobs_stats_map = function(sites_df, mobs_stat = 'MB', basemap = c('world_topo', 'satellite', 'terrain'),
+                                group_column = NULL, legend_title = 'Legend') {
+  
+  #create leaflet popups with appropriate capitalisation of letters - it's convoluted but works
+  stat_vars = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r', 'p', 'P')
+  info_vars0 = c('code', 'station', 'site', group_column, 'network', 'elev(m)', 'year') 
+  info_vars = info_vars0 %>% 
+    str_to_sentence() %>% 
+    c(stat_vars) %>% 
+    set_names(nm = c(info_vars0, stat_vars))
+  info_vars = base::intersect(names(info_vars), names(sites_df)) %>% 
+    info_vars[.]
+  
+  content = map2(info_vars, names(info_vars), ~str_c('<b>', .x, ':</b> ', sites_df[[.y]])) %>% 
+    transpose() %>% 
+    stringi::stri_join_list(sep = '<br/>')
+  
+  m = leaflet()
+  
+  #select tile type
+  if (basemap[1] == 'satellite') {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldImagery)
+  } else if (basemap[1] == 'terrain') {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldTerrain)
+  } else {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldTopoMap)
+  }
+  
+  #get breaks, colors and limits for plotting with the help of ggplot :)
+  p = ggplot(sites_df) +
+    geom_point(aes(longitude, latitude, color = .data[[mobs_stat]]))
+  if (mobs_stat %in% c('MB', 'NMB', 'r')) {
+    p = p +
+      scale_color_steps2(low = '#053061', high = '#67001f', nice.breaks = T)
+  } else {
+    p = p +
+      scale_color_steps(low = '#fff7ec', high = '#7f0000')
+  }
+  
+  p_build = ggplot_build(p)
+  p_scale = p_build$plot$scales$get_scales("colour")
+  p_breaks = p_scale$get_breaks()
+  p_colors = p_scale$palette.cache
+  p_limits = p_scale$limits
+  
+  p_breaks = c(p_limits[1], p_breaks, p_limits[2])
+  p_labels = str_c(na.omit(lag(p_breaks)), na.omit(lead(p_breaks)), sep = ' - ')
+  p_breaks[1] = p_breaks[1] - abs(p_breaks[1]*0.001)
+  p_breaks[length(p_breaks)] = p_breaks[length(p_breaks)] * 1.001
+  
+  sites_df = sites_df %>%
+    mutate(stat_cut = cut(.data[[mobs_stat]], right= F,  breaks = p_breaks, labels = p_labels, include.lowest = T))
+  
+  pal = colorFactor(palette = rev(p_colors), domain = rev(p_labels), ordered = T)
+  
+  m = m %>% 
+    addCircleMarkers(data = sites_df, fillColor = ~pal(stat_cut), fillOpacity = 1, opacity = 1,
+                     stroke = T, color = 'black', radius = 5, weight = 0.1, popup = content) %>%
+    addLegend('topright', pal = pal, values = sites_df$stat_cut, opacity = 1, title = legend_title)
+  m
+}
+
+mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
+                               run_title_info = NULL, ppp = 4, plot_all_vars = T) {
+  #plots tseries from a mobs dataframe (only one site allowed) and saves the plots in a pdf
+  #fname_out if not given is constructed from a combination of site name, code and year of mobs
+  #info_columns are names of columns in mobs_tbl with additional site info that will be inserted in brackets 
+  #in the pdf page titles
+  #run_title_info is a string for the PDF output title
+  #ppp = plots per page (max 4 recommended)
+  #plot_all_vars if FALSE only plots observed vars
+  
+  info_tbl = mobs_tbl %>% 
+    ungroup() %>% 
+    select(-any_of(c('data', 'month'))) %>% 
+    distinct()
+  
+  mobs_year = mobs_tbl %>% 
+    unnest(cols = data) %>% 
+    ungroup() %>% 
+    distinct(year(date)) %>% 
+    pull()
+
+  mobs_tbl = mobs_tbl %>% 
+    mutate(plots = map(data, plot_mobs_tseries),
+           var = map(plots, names)) %>% 
+    unnest(cols = c(plots, var)) %>% 
+    arrange(month, match(var, names(OBS_VAR_PARAMS_LIST))) %>% 
+    ungroup()
+  
+  #extract year from data if not already pulled out
+  if (!'year' %in% names(info_tbl)) {
+    info_tbl = info_tbl %>% 
+      mutate(year = mobs_year)
+  }
+  
+  if (is.null(fname_out)) {
+    fname_out = str_c(c(str_replace_all(textclean::replace_non_ascii(info_tbl[['site']]), "[^[:alnum:]]", ""),
+                                str_replace_all(textclean::replace_non_ascii(info_tbl[['station']]), "[^[:alnum:]]", ""),
+                                info_tbl[['code']],
+                                info_tbl[['year']]),
+                      collapse = ' ') %>% 
+      str_squish() %>% 
+      str_replace_all(' ', '_')
+    
+    #if only measured vars plotted add _p suffix to file name
+    if (plot_all_vars == F) {
+      fname_out = paste0(fname_out, '_p')
+    }
+  }
+  
+  plot_pth_out = path(out_dir, fname_out, ext = 'pdf')
+  
+  #create page titles for pdf
+  
+  extra_info_tbl = info_tbl %>% 
+    select(-any_of(c('code', 'site', 'station', 'year'))) %>% 
+    discard(~all(is.na(.x)))
+  if (length(extra_info_tbl) > 0) { #put brackets around info_columns if they exist
+    extra_info = extra_info_tbl %>% 
+      unite(col = 'dummy', sep = ', ') %>% 
+      pull() %>% 
+      na.omit(.)
+    extra_info = str_glue("({extra_info})")
+  } else {
+    extra_info = ''
+  }
+  # if no site or station name is provided use site/station code in title
+  if(!any(c('site', 'station') %in% names(info_tbl))) {
+    s_name = info_tbl[['code']]
+  } else {
+    s_name = NULL
+  }
+
+  page_daily_title = str_c(c('Daily means at ',
+                             textclean::replace_non_ascii(info_tbl[['site']]), 
+                             textclean::replace_non_ascii(info_tbl[['station']]),
+                             s_name,
+                             extra_info,
+                             ' in ',
+                             info_tbl[['year']]),
+                           collapse = ' ') %>% 
+    str_squish() %>% 
+    str_wrap(width = 50)
+  
+  page_hourly_title = map_chr(str_c(' ', month.name, ' '),
+                              ~str_c(c('Hourly data at ',
+                                     textclean::replace_non_ascii(info_tbl[['site']]), 
+                                     textclean::replace_non_ascii(info_tbl[['station']]),
+                                     s_name,
+                                     extra_info,
+                                     ' in ',
+                                     .x,
+                                     info_tbl[['year']]), collapse = ' ') %>% 
+                                str_squish()) %>% 
+    map_chr(str_wrap, width = 50)
+  
+  #if run_title_info provided, add it to the page titles
+  if (!is.na(run_title_info)) {
+    page_daily_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_daily_title)
+    page_hourly_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_hourly_title)
+  }
+  
+  if (plot_all_vars == T) {
+    n_vars = n_distinct(mobs_tbl$var)
+    page_titles = rep(c(page_daily_title, page_hourly_title),
+                      each = (n_vars - 1) %/% ppp + 1)
+    
+    #sort vars so that they are plotted in order of polls in OBS_VAR_PARAMS_LIST 
+    plot_vars = unique(mobs_tbl$var)
+    sorted_plot_vars = plot_vars[order(match(plot_vars, names(OBS_VAR_PARAMS_LIST)))]
+    
+    #create a base vector of vars 
+    if (n_vars %% ppp == 0) {
+      base_var_vector = sorted_plot_vars
+    } else {
+      base_var_vector = c(sorted_plot_vars, rep(NA_character_, times = ppp * (n_vars %/% ppp + 1) - n_vars))
+    }
+    
+  } else { #NEEDS SORTING OUT
+    # measured_vars = plt %>% 
+    #   drop_na() %>% 
+    #   distinct(pollutant) %>% 
+    #   pull()
+    # n_polls = length(measured_polls)
+    # 
+    # page_titles = rep(c(page_daily_title, page_hourly_title),
+    #                   each = (n_polls - 1) %/% ppp + 1)
+    # sorted_measured_polls = measured_polls[order(match(measured_polls, names(OBS_VAR_PARAMS_LIST)))]
+    # base_poll_vector = c(sorted_measured_polls, rep(NA_character_, times = ppp * (n_polls %/% ppp + 1) - n_polls))
+    
+  }
+  
+  plot_list = mobs_tbl %>% 
+    split(.$month) %>%
+    map(~right_join(.x, tibble(var = base_var_vector), by = 'var')) %>% 
+    bind_rows() %>% 
+    pull(plots)
+
+  
+  export = marrangeGrob(grobs = plot_list, nrow = ppp, ncol = 1, top = substitute(page_titles[g]))
+  ggsave(filename = plot_pth_out, export, paper = 'a4', height = 10, width = 7)
+  
+}
+
+
+mobs_tseries_to_pdf_old = function(plotlist_tbl, out_dir = getwd(), fname_out = NA,
+                               run_title_info = NA, ppp = 4, plot_all_vars = T) {
+  
+  plt = plotlist_tbl %>% 
+    unnest(c(plots, var))
+  
+  
+  #extract all meta data for fname_out
+  info_vars = c('code', 'station', 'network', 'site', 'site_type_grp', 'year') %>% 
+    set_names()
+  missing_info_vars = base::setdiff(info_vars, names(plt)) %>% 
+    set_names() %>% 
+    map_chr(~'')
+  
+  info_vars = base::intersect(info_vars, names(plt)) %>% 
+    set_names()
+  for (i in seq_along(info_vars)) {
+    info_vars[i] = unique(plt[[info_vars[i]]])
+  }
+  info_vars = c(info_vars, missing_info_vars)
+  
+  if ('year' %in% names(missing_info_vars)) {
+    info_vars['year'] = plt %>% 
+      filter(month == 1) %>% 
+      pull(data) %>% 
+      .[[1]] %>% 
+      distinct(year(date)) %>% 
+      pull() %>% 
+      as.character()
+  }
+  if (is.na(fname_out)) {
+    fname_out = str_c(str_replace_all(textclean::replace_non_ascii(info_vars['site']), "[^[:alnum:]]", ""),
+                      str_replace_all(textclean::replace_non_ascii(info_vars['station']), "[^[:alnum:]]", ""),
+                      info_vars['code'],
+                      info_vars['site_type_grp'],
+                      info_vars['year'], sep = ' ') %>% 
+      str_squish() %>% 
+      str_replace_all(' ', '_')
+    
+    #if only measured vars plotted add _p suffix to file name
+    if (plot_all_vars == F) {
+      fname_out = paste0(fname_out, '_p')
+    }
+  }
+  
+  plot_pth_out = path(out_dir, fname_out, ext = 'pdf')
+  
+  #create page titles for pdf
+  if (info_vars[['site_type_grp']] != '') { #put brackets around site_type_grp if it exists
+    info_vars[['site_type_grp']] = str_glue("({info_vars[['site_type_grp']]})")
+  }
+  # if no site or station name is provided use site/station code in title
+  s_name = ifelse(length(info_vars[c('site', 'station')] %>% .[nzchar(.)]) == 0,
+                  info_vars['code'],
+                  info_vars[c('site', 'station')] %>% .[nzchar(.)] %>% names()) 
+  page_daily_title = str_c('Daily means at ',
+                           textclean::replace_non_ascii(info_vars['site']), 
+                           textclean::replace_non_ascii(info_vars['station']),
+                           s_name,
+                           info_vars[['site_type_grp']],
+                           '\n in ',
+                           info_vars['year'], sep = ' ') %>% 
+    str_squish()
+  
+  page_hourly_title = map_chr(str_c(' ', month.name, ' '),
+                              ~str_c('Hourly data at ',
+                                     textclean::replace_non_ascii(info_vars['site']), 
+                                     textclean::replace_non_ascii(info_vars['station']),
+                                     s_name,
+                                     info_vars[['site_type_grp']],
+                                     '\n in ',
+                                     .x,
+                                     info_vars['year'], sep = ' ') %>% 
+                                str_squish())
+  
+  #if run_title_info provided, add it to the page titles
+  if (!is.na(run_title_info)) {
+    page_daily_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_daily_title)
+    page_hourly_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_hourly_title)
+  }
+  
+  if (plot_all_vars == T) {
+    n_vars = n_distinct(plt$var)
+    page_titles = rep(c(page_daily_title, page_hourly_title),
+                      each = (n_vars - 1) %/% ppp + 1)
+    
+    #sort vars so that they are plotted in order of polls in OBS_VAR_PARAMS_LIST 
+    plot_vars = unique(plt$var)
+    sorted_plot_vars = plot_vars[order(match(plot_vars, names(OBS_VAR_PARAMS_LIST)))]
+    
+    #create a base vector of vars 
+    if (n_vars %% ppp == 0) {
+      base_var_vector = sorted_plot_vars
+    } else {
+      base_var_vector = c(sorted_plot_vars, rep(NA_character_, times = ppp * (n_vars %/% ppp + 1) - n_vars))
+    }
+    
+  } else { #NEEDS SORTING OUT
+    # measured_vars = plt %>% 
+    #   drop_na() %>% 
+    #   distinct(pollutant) %>% 
+    #   pull()
+    # n_polls = length(measured_polls)
+    # 
+    # page_titles = rep(c(page_daily_title, page_hourly_title),
+    #                   each = (n_polls - 1) %/% ppp + 1)
+    # sorted_measured_polls = measured_polls[order(match(measured_polls, names(OBS_VAR_PARAMS_LIST)))]
+    # base_poll_vector = c(sorted_measured_polls, rep(NA_character_, times = ppp * (n_polls %/% ppp + 1) - n_polls))
+    
+  }
+  
+  plot_list = plt %>% 
+    arrange(month, match(var, names(OBS_VAR_PARAMS_LIST))) %>% 
+    ungroup() %>% 
+    split(.$month) %>%
+    map(~right_join(.x, tibble(var = base_var_vector), by = 'var')) %>% 
+    bind_rows() %>% 
+    pull(plots)
+  
+  export = marrangeGrob(grobs = plot_list, nrow = ppp, ncol = 1, top = substitute(page_titles[g]))
+  ggsave(filename = plot_pth_out, export, paper = 'a4', height = 10, width = 7)
+  
+}
+
 site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = NA, out_dir = '.',
-                                 plot_all_polls = T, ppp = 4, run_title_info = '') {
+                                 plot_all_vars = T, ppp = 4, run_title_info = '') {
   #outputs pdf for a site
   #ppp = plots per page
   
@@ -1068,7 +1906,7 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
   fname_out = str_c(str_replace_all(textclean::replace_non_ascii(site_meta$site), "[^[:alnum:]]", ""), site_meta$code,
                     site_meta$site_type_grp, site_meta$year, sep = '_')
   #if only measured vars plotted add _p suffix to file name
-  if (plot_all_polls == F) {
+  if (plot_all_vars == F) {
     fname_out = paste0(fname_out, '_p')
   }
   
@@ -1084,44 +1922,44 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
   page_daily_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_daily_title)
   page_hourly_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_hourly_title)
   
-  if (plot_all_polls == T) {
-    n_polls = n_distinct(merged_df_long$pollutant)
+  if (plot_all_vars == T) {
+    n_vars = n_distinct(merged_df_long$var)
     page_titles = rep(c(page_daily_title, page_hourly_title),
                       each = (n_polls - 1) %/% ppp + 1)
     
-    #sort pollutants so that they are plotted in order of polls in OBS_VAR_PARAMS_LIST 
-    plot_polls = unique(merged_df_long$pollutant)
-    sorted_plot_polls = plot_polls[order(match(plot_polls, names(OBS_VAR_PARAMS_LIST)))]
-    base_poll_vector = c(sorted_plot_polls, rep(NA_character_, times = ppp * (n_polls %/% ppp + 1) - n_polls))
+    #sort vars so that they are plotted in order of vars in OBS_VAR_PARAMS_LIST 
+    plot_vars = unique(merged_df_long$var)
+    sorted_plot_vars = plot_vars[order(match(plot_vars, names(OBS_VAR_PARAMS_LIST)))]
+    base_var_vector = c(sorted_plot_vars, rep(NA_character_, times = ppp * (n_vars %/% ppp + 1) - n_vars))
     
   } else {
-    measured_polls = merged_df_long %>% 
+    measured_vars = merged_df_long %>% 
       drop_na() %>% 
-      distinct(pollutant) %>% 
+      distinct(var) %>% 
       pull()
-    n_polls = length(measured_polls)
+    n_vars = length(measured_vars)
     
     page_titles = rep(c(page_daily_title, page_hourly_title),
-                      each = (n_polls - 1) %/% ppp + 1)
-    sorted_measured_polls = measured_polls[order(match(measured_polls, names(OBS_VAR_PARAMS_LIST)))]
-    base_poll_vector = c(sorted_measured_polls, rep(NA_character_, times = ppp * (n_polls %/% ppp + 1) - n_polls))
+                      each = (n_vars - 1) %/% ppp + 1)
+    sorted_measured_vars = measured_vars[order(match(measured_vars, names(OBS_VAR_PARAMS_LIST)))]
+    base_var_vector = c(sorted_measured_vars, rep(NA_character_, times = ppp * (n_vars %/% ppp + 1) - n_vars))
     
   }
   
-  poll_vector = rep(base_poll_vector, times = length(unique(page_titles)))
-  averaging_vector = rep(c('day', rep('hour', 12)), each = length(base_poll_vector))
-  month_vector = rep(c(NA_character_, month.abb), each = length(base_poll_vector))
+  var_vector = rep(base_var_vector, times = length(unique(page_titles)))
+  averaging_vector = rep(c('day', rep('hour', 12)), each = length(base_var_vector))
+  month_vector = rep(c(NA_character_, month.abb), each = length(base_var_vector))
   
   blank_plot = create_blank_plot() #to fill in gaps on page
   
-  plot_list = vector('list', length(poll_vector))
+  plot_list = vector('list', length(var_vector))
   
-  for (j in 1:length(poll_vector)) {
-    if (is.na(poll_vector[j])) {
+  for (j in 1:length(var_vector)) {
+    if (is.na(var_vector[j])) {
       plot_list[[j]] = blank_plot
     } else {
       merged_data_sub = merged_df_long%>% 
-        filter(pollutant == !!poll_vector[j])
+        filter(var == !!var_vector[j])
       p = plot_time_series2(dframe = merged_data_sub, time_res = averaging_vector[j],
                             month = month_vector[j])
       plot_list[[j]] = p
@@ -1134,90 +1972,133 @@ site_time_series_pdf3 = function(merged_df_long, auto_sites_df, merged_df_pth = 
 }
 
 
-plot_annual_scatter = function(mobs_list, site_meta_df, poll_name_lookup, pollutants = 'all',
-                               mobs_pths = NA) {
+plot_annual_scatter = function(mobs_ameans, colours = '#7570b3',
+                               group_column = NA, facet = T, fix_scales = F, legend_title = '') {
   #plots modelled vs observed scatter plots for data obtained by collate_mod_obs function
-  # mobs_list is a list of mod_obs dataframes
-  #can be used either within the collate_mod_obs function (if mobs_list is provided) or
-  #on its outputted files (set mobs_list to NA and provide a vector of paths to the saved files) 
+  # mobs_ameans is a dataframe with with annual mobs means
   
-  if('sf' %in% class(site_meta_df)) site_meta_df = st_drop_geometry(site_meta_df)
-  
-  if(all(is.na(mobs_list))) {
-    if(all(!is.na(mobs_pths))) {
-      
-      mobs_list = map(mobs_pths, read_rds) %>%
-        map(mobs_to_long)
-
-    } else {
-      stop('Either mobs_list or mobs_pths must be given')
-    }
-  }
-
-  mobs_means = future_map_dfr(mobs_list, summarise_mobs, avg_time = 'year') %>% 
-    left_join(site_meta_df, by = 'code') %>% 
-    mutate(site_type_grp = factor(site_type_grp, levels = c('Road', 'Urban', 'Industrial', 'Rural', 'Unknown'), ordered = T))
-
   
   #calculate max concentrations to determine x and y upper limits for plotting
-  mobs_max = mobs_means %>% 
-    group_by(pollutant) %>% 
-    pivot_longer(cols = c(mod, obs), names_to = 'scenario', values_to = 'conc') %>% 
-    summarise(max_conc = max(conc, na.rm = T)) %>% 
-    ungroup() 
+  mobs_extremes = mobs_ameans %>% 
+    group_by(var) %>% 
+    pivot_longer(cols = c(mod, obs), names_to = 'scenario', values_to = 'value') %>% 
+    summarise(max_val = max(value, na.rm = T),
+              min_val = min(value, na.rm = T)) %>% 
+    ungroup()
+  mobs_max = mobs_extremes %>% 
+    pull(max_val)
+  mobs_min = mobs_extremes %>% 
+    pull(min_val)
   
-  if(pollutants != 'all') {
-    mobs_max = mobs_max %>% 
-      filter(pollutant %in% pollutants)
+  #determine plot title
+  if (unique(mobs_ameans$var) == 'precip') {
+    p_title = paste0(OBS_VAR_PARAMS_LIST[[unique(mobs_ameans$var)]][['lab_unit']])
+  } else {
+    p_title = parse(text = paste0('Annual~Mean~', OBS_VAR_PARAMS_LIST[[unique(mobs_ameans$var)]][['lab_unit']]))
   }
   
-  plots = vector('list', nrow(mobs_max))
+  p = ggplot() +
+    geom_abline(slope = 0.5, intercept = 0, linetype = 'longdash', linewidth = 0.3) +
+    geom_abline(slope = 2, intercept = 0, linetype = 'longdash', linewidth = 0.3) +
+    geom_abline(slope = 1, intercept = 0, linetype = 'solid', linewidth = 0.3)
   
-  for (i in seq_along(mobs_max$pollutant)) {
+  if (is.na(group_column)) {
+    p = p +
+      geom_point(data = mobs_ameans, mapping = aes(obs, mod), color = colours, shape = 1, alpha = 0.8, size = 2) +
+      scale_x_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), mobs_max * 1.02)) +
+      scale_y_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), mobs_max * 1.02))
+    theme_extra = theme()
     
-    poll = mobs_max$pollutant[i]
+  } else {
+    mobs_ameans = mobs_ameans %>% 
+      mutate('{group_column}' := factor(.data[[group_column]], levels = names(colours), ordered = T))
+    p = p +
+      geom_point(data = mobs_ameans, mapping = aes(obs, mod, color = .data[[group_column]]), shape = 1, alpha = 0.8, size = 2) +
+      scale_color_manual(values = colours,
+                         guide = guide_legend(override.aes = list(alpha = 1, size = 3))) 
     
-    #get mex obs or mod concentrations to getermine x and y limits
-    max_value = filter(mobs_max, pollutant == !!poll) %>% 
-      pull()
-    
-    mobs_means_sub = mobs_means %>% 
-      filter(pollutant == !!poll)
-    
-    p1 = ggplot(mobs_means_sub) +
-      geom_abline(slope = 0.5, intercept = 0, linetype = 'longdash', size = 0.3) +
-      geom_abline(slope = 2, intercept = 0, linetype = 'longdash', size = 0.3) +
-      geom_abline(slope = 1, intercept = 0, linetype = 'solid', size = 0.3) +
-      geom_point(aes(obs, mod, shape = site_type_grp, color = site_type_grp),alpha = 0.8, size = 2) +
-      scale_x_continuous(limits = c(0, max_value * 1.02)) +
-      scale_y_continuous(limits = c(0, max_value * 1.02)) +
-      scale_shape_manual(values = c(Road = 1, Urban = 2, Industrial = 4, Rural = 0)) +
-      scale_color_manual(values = c(Road = '#e7298a', Urban = '#7570b3', Industrial = '#d95f02', Rural = '#1b9e77', 'Unknown' = '#666666'),
-                         guide = guide_legend(override.aes = list(alpha = 1, size = 3))) +
-      facet_wrap(~site_type_grp, ncol = 4) +
-      labs(title = parse(text = paste0('Annual~Mean~', OBS_VAR_PARAMS_LIST[[poll]][['lab_unit']])),
-           x = myquickText(paste0('Observed')),
-           y = myquickText(paste0('Modelled')), 
-           shape = 'Site Type',
-           color = 'Site Type') +
+    if (facet == T) {
+      if (fix_scales == T) {
+        p = p +
+          facet_wrap(~.data[[group_column]], ncol = 4) +
+              scale_x_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), mobs_max * 1.02)) +
+              scale_y_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), mobs_max * 1.02))
+        
+      } else {
+        mobs_max = mobs_ameans %>% 
+          group_by(var, site_type_grp) %>% 
+          pivot_longer(cols = c(mod, obs), names_to = 'scenario', values_to = 'value') %>% 
+          summarise(max_val = max(value, na.rm = T)) %>% 
+          ungroup()
+        
+        grp_elements = as.character(mobs_max[[group_column]])
+        
+        plist = list()
+        for (i in seq_along(grp_elements)) {
+          max_val = mobs_max %>% 
+            filter(.data[[group_column]] == grp_elements[i]) %>% 
+            pull(max_val)
+          
+          p1 = ggplot() +
+            geom_abline(slope = 0.5, intercept = 0, linetype = 'longdash', linewidth = 0.3) +
+            geom_abline(slope = 2, intercept = 0, linetype = 'longdash', linewidth = 0.3) +
+            geom_abline(slope = 1, intercept = 0, linetype = 'solid', linewidth = 0.3) +
+            geom_point(data = filter(mobs_ameans, .data[[group_column]] == grp_elements[i]),
+                       mapping = aes(obs, mod, color = .data[[group_column]]), shape = 1, alpha = 0.8, size = 2) +
+            scale_color_manual(values = colours,
+                               guide = guide_legend(override.aes = list(alpha = 1, size = 3))) +
+            scale_x_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), max_val * 1.02)) +
+            scale_y_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), max_val * 1.02)) +
+            facet_wrap(~.data[[group_column]]) +
+            labs(x = NULL,
+                 y = NULL,
+                 color = 'Site Type') +
+            theme_bw() +
+            theme(strip.background = element_rect(fill = unname(OBS_VAR_PARAMS_LIST[[unique(mobs_ameans$var)]][['var_fill']])),
+                  strip.text = element_text(size = 9),
+                  aspect.ratio = 1,
+                  axis.text = element_text(size = 8),
+                  axis.title = element_text(size = 9),
+                  legend.position = 'none',
+                  panel.grid.major = element_line(linewidth = 0.02),
+                  panel.grid.minor = element_line(linewidth = 0.01),
+                  plot.title = element_text(hjust = 0.5, size = 11))# color = '#473C8B'))
+          plist[[i]] = p1
+            
+        }
+        plist = ggarrange(plotlist = plist, nrow = 1) %>% 
+          annotate_figure(top = text_grob(parse(text = p_title), size = 11),
+                          left = text_grob('Modelled', rot = 90, size = 9),
+                          bottom = text_grob('Observed', size = 9))
+        return(plist)
+      } 
       
-      theme_bw() +
-      theme(strip.background = element_rect(fill = unname(OBS_VAR_PARAMS_LIST[[poll]][['poll_fill']])),
-            strip.text = element_text(size = 9),
-            aspect.ratio = 1,
-            axis.text = element_text(size = 8),
-            axis.title = element_text(size = 9),
-            legend.position = 'none',
-            legend.text = element_text(size = 9),
-            legend.title = element_text(size = 10),
-            panel.grid.major = element_line(size = 0.02),
-            panel.grid.minor = element_line(size = 0.01),
-            plot.title = element_text(hjust = 0.5, size = 11))# color = '#473C8B'))
-    
-    plots[[i]] = p1
+    } else {
+      theme_extra = theme(legend.position = 'right')
+    }
+  
   }
-  names(plots) = mobs_max$pollutant
-  plots
+  
+  p = p +
+    labs(title = parse(text = p_title),
+         x = myquickText(paste0('Observed')),
+         y = myquickText(paste0('Modelled')),
+         color = 'Site Type') +
+    theme_bw() +
+    theme(strip.background = element_rect(fill = unname(OBS_VAR_PARAMS_LIST[[unique(mobs_ameans$var)]][['var_fill']])),
+          strip.text = element_text(size = 9),
+          aspect.ratio = 1,
+          axis.text = element_text(size = 8),
+          axis.title = element_text(size = 9),
+          legend.position = 'none',
+          legend.text = element_text(size = 9),
+          legend.title = element_text(size = 10),
+          panel.grid.major = element_line(linewidth = 0.02),
+          panel.grid.minor = element_line(linewidth = 0.01),
+          plot.title = element_text(hjust = 0.5, size = 11)) +
+    theme_extra
+  
+  p
 }
 
 
@@ -1378,7 +2259,7 @@ plot_emiss_diff = function(emiss_dframe, emiss_table_pth = NULL, threshold = 5) 
       filter(pollutant == polls[[i]])
     
     p1 = ggplot(emiss_sub) +
-      geom_hline(yintercept = 0, color = 'black', size = 0.2) +
+      geom_hline(yintercept = 0, color = 'black', linewidth = 0.2) +
       geom_bar(aes(Land, value), fill = emiss_bar_fills[polls[[i]]], color = 'black', size = 0.1,
                stat = 'identity', position = 'dodge', width = 0.8) +
       geom_rect(data = (filter(emiss_sub, diff == 'rel') %>% slice(1)),
@@ -1391,7 +2272,7 @@ plot_emiss_diff = function(emiss_dframe, emiss_table_pth = NULL, threshold = 5) 
       theme_bw() +
       theme(strip.background = element_rect(fill = 'gray80'),
             strip.text = element_text(size = 10, color = 'black'),
-            panel.grid.major = element_line(size = 0.1),
+            panel.grid.major = element_line(linewidth = 0.1),
             axis.text = element_text(size = 8),
             plot.title = element_text(size = 12, hjust = 0.5, face = 'bold'))
     emiss_plots[[i]] = p1
@@ -1651,7 +2532,7 @@ apply_area_mask = function(stars_object, area_mask = NULL) {
 }
 
 recode_site_type = function(site_type) {
-  site_type_grp = case_when(is.na({{site_type}}) ~ 'Unknown',
+  site_type_grp = case_when((is.na({{site_type}}) || {{site_type}} == '') ~ 'Unknown',
                             {{site_type}} %in% c("Urban Traffic","roadside","Roadside",
                                          "Kerbside","kerbside","traffic_urban") == T ~ 'Road',
                             {{site_type}} %in% c("Urban Background","Suburban Background", "urban",
@@ -1667,9 +2548,9 @@ recode_site_type = function(site_type) {
 mobs_to_long = function(mobs_dframe) {
   #converts wide format of mobs_dframe to long format
   mobs_long = mobs_dframe %>% 
-    pivot_longer(c(-date, -code), names_to = 'pollutant', values_to = 'conc') %>% 
-    separate(pollutant, into = c('scenario', 'pollutant'), sep = '_') %>% 
-    pivot_wider(id_cols = c(date, code, pollutant), names_from = scenario, values_from = conc)
+    pivot_longer(c(-date, -code), names_to = 'var', values_to = 'value') %>% 
+    separate(var, into = c('scenario', 'var'), sep = '_') %>% 
+    pivot_wider(id_cols = c(date, code, var), names_from = scenario, values_from = value)
   mobs_long
 }
 
@@ -1726,7 +2607,7 @@ format_file_size_table = function(file_size_df) {
     tab_style(style = list(cell_text(color = 'red')),
               locations = cells_body(columns = rel_diff,
                                      rows = abs(rel_diff) > 5)) %>% 
-    fmt_missing(columns = everything()) %>% 
+    sub_missing(columns = everything()) %>% 
     cols_label(fname = 'File',
                test = 'Test Run',
                ref = 'Reference Run',
