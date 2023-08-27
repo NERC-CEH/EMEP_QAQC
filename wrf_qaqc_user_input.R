@@ -1,7 +1,7 @@
 library(fs)
 
 # tasks -------------------------------------------------------------------
-COLLATE_MOBS = F
+COLLATE_MOBS = T
 EVALUATE_MOBS = T
 PLOT_MOBS_MAPS = T
 PLOT_MOBS = T
