@@ -152,7 +152,7 @@ get_isd_sites = function(year, CC_file = NULL) {
 
 sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
   #samples sites from a tibble with site meta data
-  #type  - sf, random, stratified, manual, subset 
+  #type  - sf, random, stratified, manual, subset, exclude 
   
   #selector arg is dependent on type arg
   #if type is 'sf' selector must be either an sf polygon(s) or a path to a geospatial file containing such polygons
@@ -160,8 +160,9 @@ sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
   #if type is 'stratified' selector is a name of a grouping column in meta_df and n the number of sites
   #if type is 'subset' selector is either 'airport' (extracts airports) or a subsetting expression -e.g. expression(latitude > 50)
   #if type is 'manual' selector is either a vector of site codes or a path to an rds file with a dataframe which has a column 'code'
+  #if type is 'exclude' selector is either a vector of site codes or a path to an rds file with a dataframe which has a column 'code'
 
-  assert_choice(type, c('sf', 'random', 'stratified', 'subset', 'manual'), null.ok = T)
+  assert_choice(type, c('sf', 'random', 'stratified', 'subset', 'manual', 'exclude'), null.ok = T)
   
   if (is.null(type)) {
     return(meta_df)
@@ -209,6 +210,16 @@ sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
     }
     meta_df = meta_df %>% 
       filter('code' %in% selector)
+  } else if ('exclude' %in% type) {
+    assert(check_choice('code', names(meta_df)),
+           check_file_exists(selector),
+           check_character(selector))
+    if (file_exists(selector)) {
+      selector = read_rds(selector) %>% 
+        pull(code)
+    }
+    meta_df = meta_df %>% 
+      filter(!'code' %in% selector)
   } else if ('subset' %in% type) {
     if (is.expression(selector)) {
       meta_df = meta_df %>% 
@@ -822,6 +833,152 @@ sum_precip = function(mobs_frame, frame_format = 'long') {
   mobs_frame
 }
 
+my_importNOAA = function(code, year) {
+  # function to supress timeAverage printing
+  # (can't see option to turn it off)
+  quiet <- function(x) { 
+    sink(tempfile()) 
+    on.exit(sink()) 
+    invisible(force(x)) 
+  } 
+  
+  ## location of data
+  file.name <- paste0(
+    "https://www.ncei.noaa.gov/data/global-hourly/access/",
+    year, "/", gsub(pattern = "-", "", code), ".csv"
+  )
+  
+  # suppress warnings because some fields might be missing in the list
+  # Note that not all available data is returned - just what I think is most useful
+  met_data <- try(suppressWarnings(read_csv(
+    file.name,
+    col_types = cols_only(
+      STATION = col_character(),
+      DATE = col_datetime(format = ""),
+      SOURCE = col_double(),
+      LATITUDE = col_double(),
+      LONGITUDE = col_double(),
+      ELEVATION = col_double(),
+      NAME = col_character(),
+      REPORT_TYPE = col_character(),
+      CALL_SIGN = col_double(),
+      QUALITY_CONTROL = col_character(),
+      WND = col_character(),
+      CIG = col_character(),
+      VIS = col_character(),
+      TMP = col_character(),
+      DEW = col_character(),
+      SLP = col_character(),
+      AA1 = col_character(),
+      AW1 = col_character(),
+      GA1 = col_character(),
+      GA2 = col_character(),
+      GA3 = col_character()
+    ),
+    progress = FALSE
+  )), silent = TRUE
+  )
+  
+  if (class(met_data)[1] == "try-error") {
+    message(paste0("Missing data for site ", code, " and year ", year))
+    met_data <- NULL
+    return()
+  }
+  
+  met_data <- rename(met_data,
+                     code = STATION,
+                     station = NAME,
+                     date = DATE,
+                     latitude = LATITUDE,
+                     longitude = LONGITUDE,
+                     elev = ELEVATION
+  )
+  
+  met_data$code <- code
+  
+  # separate WND column
+  
+  if ("WND" %in% names(met_data)) {
+    met_data <- separate(met_data, WND, into = c("wd", "wd_qc", "wo_tc", "ws", "ws_qc"))
+    
+    met_data <- mutate(met_data,
+                       across(c(wd, wd_qc, ws, ws_qc), ~as.numeric(.x)),
+                       wd = if_else(wd == 999, NA, wd),
+                       wd = if_else(wd_qc %in% c(1, 5), wd, NA),
+                       ws = if_else(ws == 9999, NA, ws),
+                       ws = if_else(wd_qc %in% c(1, 5), ws, NA),
+                       ws = ws / 10
+    )
+  }
+  
+  # separate TMP column
+  if ("TMP" %in% names(met_data)) {
+    met_data <- separate(met_data, TMP, into = c("air_temp", "air_temp_qc"), sep = ",")
+    
+    met_data <- mutate(met_data,
+                       air_temp = as.numeric(air_temp),
+                       air_temp = if_else(air_temp == 9999, NA, air_temp),
+                       air_temp = if_else(air_temp_qc %in% c('1', '5'), air_temp, NA),
+                       air_temp = air_temp / 10
+    )
+  }
+
+  # separate DEW column
+  if ("DEW" %in% names(met_data)) {
+    met_data <- separate(met_data, DEW, into = c("dew_point", "dew_qc"), sep = ",")
+    
+    met_data <- mutate(met_data,
+                       dew_point = as.numeric(dew_point),
+                       dew_point = if_else(dew_point == 9999, NA, dew_point),
+                       dew_point = if_else(dew_qc %in% c('1', '5'), dew_point, NA),
+                       dew_point = dew_point / 10
+    )
+  }
+  # separate SLP column
+  if ("SLP" %in% names(met_data)) {
+    met_data <- separate(met_data, SLP,
+                         into = c("atmos_pres", "pres_qc"), sep = ",",
+                         fill = "right"
+    )
+    
+    met_data <- mutate(met_data,
+                       atmos_pres = as.numeric(atmos_pres),
+                       atmos_pres = if_else(atmos_pres %in% c(99999, 999999), NA, atmos_pres),
+                       atmos_pres = if_else(pres_qc %in% c('1', '5'), atmos_pres, NA),
+                       atmos_pres = atmos_pres / 10
+    )
+  }
+
+  ## relative humidity - general formula based on T and dew point
+  met_data$RH <- 100 * ((112 - 0.1 * met_data$air_temp + met_data$dew_point) /
+                          (112 + 0.9 * met_data$air_temp))^8
+  
+  
+  # PRECIP AA1
+  if ("AA1" %in% names(met_data)) {
+    met_data <- separate(met_data, AA1,
+                         into = c("precip_code", "precip_raw", "precip_cc", "precip_qc"),
+                         sep = ","
+    )
+    
+    met_data <- mutate(met_data,
+                       precip_raw = as.numeric(precip_raw),
+                       precip_raw = ifelse(precip_raw == 9999, NA, precip_raw),
+                       precip_raw = precip_raw / 10
+    )
+  }
+
+  ## select the variables we want
+  met_data <- select(met_data, any_of(c(
+    "date", "code", "station", "latitude", "longitude", "elev", "report_type" = "REPORT_TYPE",
+    "ws", "wd", "wo_tc", 
+    "air_temp", "atmos_pres",
+    "dew_point", "RH",
+    "precip_code", "precip_raw",
+    "precip_cc", "precip_qc"
+  )))
+}
+
 format_NOAA = function(NOAA_frame) {
   met_var_lookup = c(air_temp = 'T2',
                      dew_point  = 'td2',
@@ -832,6 +989,10 @@ format_NOAA = function(NOAA_frame) {
                     'ws', 'wd', 'RH', precip =  'precip_12'))) %>% 
     pivot_longer(cols = c(-date, -code), names_to = 'var', values_to = 'value') %>% 
     mutate(var = if_else(var %in% names(met_var_lookup), met_var_lookup[var], var))
+  
+}
+
+summarise_isd = function(isd_dframe) {
   
 }
 
