@@ -419,16 +419,16 @@ collate_obs_mod_nc = function(nc_pth, var_name_lookup, site_code = 'MY1', i_inde
   
   nc_year = unique(year(nc_date$date))
   
-  var = unname(var_name_lookup[str_to_lower(var)])
+  var_mod = unname(var_name_lookup[str_to_lower(var)])
   
   mod_data = ncvar_get(nc,
-                       varid = var,
+                       varid = var_mod,
                        start = c(i_index, j_index, 1), count = c(1, 1,-1)) %>%
     as_tibble() %>%
     mutate(code = site_code, .before = value) %>% 
     rename(mod = value) %>%
     bind_cols(nc_date, .)
-  if (str_detect(var, 'ppb_O3')) {#convert ozone to ug/m3
+  if (str_detect(var_mod, 'ppb_O3')) {#convert ozone to ug/m3
     mod_data = mod_data %>%
       mutate(mod = mod * 2)
   }
@@ -449,7 +449,7 @@ collate_obs_mod_nc = function(nc_pth, var_name_lookup, site_code = 'MY1', i_inde
       get_auto_data(site = site_code, network = network, pollutant = str_to_lower(var),
                     start_year = min(nc_year), end_year = max(nc_year), to_narrow = T) %>%
         select(-code) %>% 
-        rename(obs = conc)
+        rename(obs = conc, var = pollutant)
     )
   }
   
@@ -993,7 +993,22 @@ format_NOAA = function(NOAA_frame) {
 }
 
 summarise_isd = function(isd_dframe) {
+  isd2 = isd_dframe %>% 
+    select(date, code, report_type:last(names(.))) %>% 
+    mutate(obs_minute = minute(date), .after = date) %>% 
+    group_by(code, report_type, obs_minute)
   
+  isd_dc = isd2 %>%
+    summarise(across(any_of(c('ws', 'wd', 'air_temp', 'atmos_pres', 'dew_point', 'precip_raw')), ~mean(!is.na(.x))*100)) %>%
+    ungroup() %>% 
+    left_join(tally(isd2), .)
+  
+  
+  # precip_summary = isd2 %>% 
+  #   select(date, matches('precip')) %>%
+  #   mutate(precip_code = as.numeric(precip_code)) %>%
+  #   mutate(obs_minute = minute(date), .after = date) %>% 
+  #   filter(precip_qc %in% c('1', '5'))
 }
 
 format_mobs_to_plot = function(mobs_lframe) {

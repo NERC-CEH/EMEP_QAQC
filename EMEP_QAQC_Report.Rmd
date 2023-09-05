@@ -814,9 +814,9 @@ mobs_tlist = future_pmap(list(site_code = iter_df$code,
                               i_index = iter_df$i,
                               j_index = iter_df$j,
                               network = iter_df$network,
-                              pollutant = iter_df$poll),
+                              var = iter_df$poll),
                          safely(collate_obs_mod_nc), nc_pth = str_subset(dir_ls(obs_dir), '(H|h)our'),
-                         poll_name_lookup = mobs_polls,
+                         var_name_lookup = mobs_polls,
                          .options = furrr_options(seed = T)) %>%
   transpose()
 log_info('Mobs collating finished')
@@ -836,7 +836,7 @@ mobs_list = mobs_tlist$result[is_ok] %>%
 
 #convert to wide format for writing out to file (smaller file size)
 mobs_wide = mobs_list %>%
-  future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(pollutant), values_from = c(obs, mod)), .options = furrr_options(seed = T))
+  future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var), values_from = c(obs, mod)), .options = furrr_options(seed = T))
 
 mobs_data_pths = path(data_pth_out, paste0(names(mobs_list), '_mod_obs'), ext = 'rds')
 future_walk2(mobs_wide, mobs_data_pths, write_rds, .options = furrr_options(seed = T))
