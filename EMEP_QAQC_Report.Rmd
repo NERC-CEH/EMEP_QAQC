@@ -814,9 +814,9 @@ mobs_tlist = future_pmap(list(site_code = iter_df$code,
                               i_index = iter_df$i,
                               j_index = iter_df$j,
                               network = iter_df$network,
-                              pollutant = iter_df$poll),
+                              var = iter_df$poll),
                          safely(collate_obs_mod_nc), nc_pth = str_subset(dir_ls(obs_dir), '(H|h)our'),
-                         poll_name_lookup = mobs_polls,
+                         var_name_lookup = mobs_polls,
                          .options = furrr_options(seed = T)) %>%
   transpose()
 log_info('Mobs collating finished')
