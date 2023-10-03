@@ -779,61 +779,7 @@ add_ox = function(site_dframe, df_format = c('long', 'wide'), units = 'ug/m3') {
   site_dframe
 }
 
-sum_precip = function(mobs_frame, frame_format = 'long') {
-  #problematic due to inconsistencies in historic obs data, do not use
-  if (frame_format == 'long') {
-    mobs_frame = mobs_frame %>% 
-      pivot_wider(id_cols = c(date, code), names_from = c(var, scenario), values_from = value)
-  }
-  
-  if ('precip_12_obs' %in% names(mobs_frame)) {
-    mobs_precip = mobs_frame %>% 
-      select(date, code, precip_mod, precip_12_obs)
-    precip_dates = mobs_precip %>% 
-      drop_na() %>% 
-      pull(date)
-    mobs_precip = mobs_precip %>% 
-      mutate(date = ceiling_date(date, precip_dates)) %>% 
-      group_by(date, code) %>% 
-      summarise(n = n(),
-                precip12_mod = sum(precip_mod, na.rm = T),
-                precip12_obs = sum(precip_12_obs, na.rm = T)) %>% 
-      ungroup() %>% 
-      filter(n == 12) %>% 
-      select(-n)
-    
-    mobs_frame = mobs_frame %>% 
-      select(-matches('precip')) %>% 
-      left_join(mobs_precip, by = c('date', 'code'))
-  } else if ('precip_6_obs' %in% names(mobs_frame)) {
-    mobs_precip = mobs_frame %>% 
-      select(date, code, precip_mod, precip_6_obs)
-    precip_dates = mobs_precip %>% 
-      drop_na() %>% 
-      pull(date)
-    mobs_precip = mobs_precip %>% 
-      mutate(date = ceiling_date(date, precip_dates)) %>% 
-      group_by(date, code) %>% 
-      summarise(n = n(),
-                precip6_mod = sum(precip_mod, na.rm = T),
-                precip6_obs = sum(precip_6_obs, na.rm = T)) %>% 
-      ungroup() %>% 
-      filter(n == 6) %>% 
-      select(-n)
-    
-    mobs_frame = mobs_frame %>% 
-      select(-matches('precip')) %>% 
-      left_join(mobs_precip, by = c('date', 'code'))
-  }
-  mobs_frame = mobs_frame %>% 
-    pivot_longer(c(-date, -code), names_to = 'var', values_to = 'value') %>% 
-    separate(var, into = c('var', 'scenario'), sep = '_') %>% 
-    pivot_wider(id_cols = c(date, code, var), names_from = scenario, values_from = value)
-  
-  mobs_frame
-}
-
-my_importNOAA = function(code, year) {
+my_importNOAA = function(code, year, pth = NULL) {
   # function to supress timeAverage printing
   # (can't see option to turn it off)
   quiet <- function(x) { 
@@ -904,9 +850,7 @@ my_importNOAA = function(code, year) {
     met_data <- mutate(met_data,
                        across(c(wd, wd_qc, ws, ws_qc), ~as.numeric(.x)),
                        wd = if_else(wd == 999, NA, wd),
-                       wd = if_else(wd_qc %in% c(1, 5), wd, NA),
                        ws = if_else(ws == 9999, NA, ws),
-                       ws = if_else(wd_qc %in% c(1, 5), ws, NA),
                        ws = ws / 10
     )
   }
@@ -918,7 +862,6 @@ my_importNOAA = function(code, year) {
     met_data <- mutate(met_data,
                        air_temp = as.numeric(air_temp),
                        air_temp = if_else(air_temp == 9999, NA, air_temp),
-                       air_temp = if_else(air_temp_qc %in% c('1', '5'), air_temp, NA),
                        air_temp = air_temp / 10
     )
   }
@@ -930,7 +873,6 @@ my_importNOAA = function(code, year) {
     met_data <- mutate(met_data,
                        dew_point = as.numeric(dew_point),
                        dew_point = if_else(dew_point == 9999, NA, dew_point),
-                       dew_point = if_else(dew_qc %in% c('1', '5'), dew_point, NA),
                        dew_point = dew_point / 10
     )
   }
@@ -944,7 +886,6 @@ my_importNOAA = function(code, year) {
     met_data <- mutate(met_data,
                        atmos_pres = as.numeric(atmos_pres),
                        atmos_pres = if_else(atmos_pres %in% c(99999, 999999), NA, atmos_pres),
-                       atmos_pres = if_else(pres_qc %in% c('1', '5'), atmos_pres, NA),
                        atmos_pres = atmos_pres / 10
     )
   }
@@ -970,45 +911,151 @@ my_importNOAA = function(code, year) {
 
   ## select the variables we want
   met_data <- select(met_data, any_of(c(
-    "date", "code", "station", "latitude", "longitude", "elev", "report_type" = "REPORT_TYPE",
-    "ws", "wd", "wo_tc", 
-    "air_temp", "atmos_pres",
-    "dew_point", "RH",
+    "date", "code", "report_type" = "REPORT_TYPE",
+    "ws", "wd", "wo_tc", "wd_qc",
+    "air_temp", "air_temp_qc",
+    "atmos_pres", "pres_qc",
+    "dew_point", "dew_qc", "RH",
     "precip_code", "precip_raw",
     "precip_cc", "precip_qc"
   )))
+  
+  if (!is.null(pth)) {
+    write_rds(met_data, pth)
+  }
 }
 
-format_NOAA = function(NOAA_frame) {
+clean_noaa = function(noaa_dframe) {
+  #filters out problematic data based on quality flags
+  #please see isd_format_document.pdf for flag explanation
+  noaa_dframe = noaa_dframe %>%
+    mutate(wd = if_else(wd_qc %in% c(1, 5), wd, NA),
+           wd = if_else(wo_tc %in% c('C', 'N', 'V', '9'), wd, NA),
+           ws = if_else(wd_qc %in% c(1, 5), ws, NA),
+           air_temp = if_else(air_temp_qc %in% c('1', '5'), air_temp, NA),
+           dew_point = if_else(dew_qc %in% c('1', '5'), dew_point, NA),
+           atmos_pres = if_else(pres_qc %in% c('1', '5'), atmos_pres, NA),
+           RH = if_else(!(is.na(air_temp) | is.na(dew_point)), RH, NA))
+  
+  if ('precip_code' %in% names(noaa_dframe)) {
+    noaa_dframe = noaa_dframe %>%
+      mutate(precip_raw = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3') & precip_code != '99', precip_raw, NA),
+             precip_code = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3') & precip_code != '99', precip_code, NA))
+  }
+  
+  noaa_dframe = noaa_dframe %>% 
+    mutate(obs_minute = minute(date), .after = report_type) %>% 
+    select(-any_of(c('wo_tc', 'wd_qc', 'air_temp_qc', 'pres_qc', 'dew_qc', 'precip_cc', 'precip_qc')))
+  
+  noaa_dframe
+}
+
+assess_noaa = function(noaa_dframe) {
+  #outputs a tibble with data capture summary per report type and minute of observation
+  #use this to select suitable data
+  #see isd_format_document.pdf for report_type description
+  
+  #make sure minute of observation is a column
+  if (!'obs_minute' %in% names(noaa_dframe)) {
+    noaa_dframe = noaa_dframe %>% 
+      mutate(obs_minute = minute(date))
+  }
+  
+  nonprecip_summary0 = noaa_dframe %>%
+    select(-matches('precip'))
+  
+  met_vars = intersect(names(nonprecip_summary0), c('ws', 'wd', 'air_temp', 'atmos_pres', 'dew_point', 'RH'))
+  nonprecip_summary = vector('list', length(met_vars))
+  for (i in seq_along(met_vars)) {
+    nonprecip_summary[[i]] = nonprecip_summary0 %>% 
+      select(date, code, report_type, obs_minute, !!met_vars[i]) %>%
+      drop_na() %>% 
+      group_by(code, report_type, obs_minute) %>% 
+      tally(name = glue::glue('{met_vars[i]}_n')) %>% 
+      mutate('{met_vars[i]}_dc' := round(.data[[glue::glue('{met_vars[i]}_n')]]/Hmisc::yearDays(noaa_dframe$date[1])/24*100, 1)) %>% 
+      select(-matches('_n$'))
+  }  
+  
+  obs_summary = nonprecip_summary %>% 
+    map(~ungroup(.x)) %>% 
+    reduce(left_join, by = c('code', 'report_type', 'obs_minute'))
+  
+  if ('precip_code' %in% names(noaa_dframe)) {
+    precip_summary = noaa_dframe %>%
+      select(date, code, report_type, obs_minute, matches('precip')) %>% 
+      group_by(code, report_type, obs_minute, precip_code) %>% 
+      drop_na(precip_raw) %>% 
+      tally(name = 'precip_n')
+    
+    obs_summary = full_join(obs_summary, precip_summary, by = c('code', 'report_type', 'obs_minute'))
+  }
+  
+  obs_summary
+}
+
+format_noaa = function(noaa_dframe) {
+  assert(check_number(unique(noaa_dframe$obs_minute)),
+         check_number(length(unique(noaa_dframe$report_type))),
+         combine = 'and')
+  
+  noaa_dframe = noaa_dframe %>% 
+    select(-report_type)
+  
   met_var_lookup = c(air_temp = 'T2',
                      dew_point  = 'td2',
                      atmos_pres = 'slp', 
                      RH = 'rh2')
-  NOAA_frame = NOAA_frame %>% 
-    select(any_of(c('date', 'code', 'air_temp', 'dew_point', 'atmos_pres',
-                    'ws', 'wd', 'RH', precip =  'precip_12'))) %>% 
+  
+  full_year_range = seq.POSIXt(from = as_datetime(str_c(unique(year(noaa_dframe$date)), '-01-01 00:', str_pad(unique(noaa_dframe$obs_minute), width = 2, side = 'left', pad = '0'), ':00')),
+                               to = as_datetime(str_c(unique(year(noaa_dframe$date)), '-12-31 23:', str_pad(unique(noaa_dframe$obs_minute), width = 2, side = 'left', pad = '0'), ':00')),
+                               by = 'hour') %>% 
+    as_datetime() %>% 
+    as_tibble() %>% 
+    set_names(nm = 'date')
+  
+  noaa_dframe2 = left_join(full_year_range, noaa_dframe, by = 'date') %>% 
+    mutate(code = replace_na(code, na.omit(unique(noaa_dframe$code))))#,
+  #report_type = replace_na(report_type, na.omit(unique(noaa_dframe$report_type))))
+  
+  if ('precip_code' %in% names(noaa_dframe)) {
+    noaa_dframe2 = noaa_dframe2 %>% 
+      #select(date, obs_minute, code, precip_code, precip_raw) %>% 
+      mutate(precip_code = as.numeric(precip_code)) %>% 
+      arrange(date)
+    
+    precip_codes = unique(noaa_dframe2$precip_code) %>%
+      sort(decreasing = T)
+    for (i in seq_along(precip_codes)) {
+      slice_ends = which(noaa_dframe2$precip_code == precip_codes[i])
+      #remove indeces that would result in slicing out of bounds
+      slice_logical = !(slice_ends - precip_codes[i]) < 1
+      for (j in seq_along(slice_ends)) {
+        if (slice_logical[j] == F) {
+          #erase any other precip_code values within the precip_code period
+          noaa_dframe2$precip_code[1:(slice_ends[j] - 1)] = NA
+          #redistribute accumulated rainfall equally within the precip_code period
+          noaa_dframe2$precip_raw[1:(slice_ends[j])] = noaa_dframe2$precip_raw[(slice_ends[j])]/precip_codes[i]
+        } else {
+          #erase any other precip_code values within the precip_code period
+          noaa_dframe2$precip_code[(slice_ends[j] - precip_codes[i] + 1):(slice_ends[j] - 1)] = NA
+          #redistribute accumulated rainfall equally within the precip_code period
+          noaa_dframe2$precip_raw[(slice_ends[j] - precip_codes[i] + 1):(slice_ends[j])] = noaa_dframe2$precip_raw[(slice_ends[j])]/precip_codes[i]
+        }
+      }
+    }
+    
+    noaa_dframe2 = noaa_dframe2 %>%
+      rename(precip = precip_raw)
+  }
+  
+  noaa_dframe3 = noaa_dframe2 %>% 
+    select(-obs_minute) %>% 
     pivot_longer(cols = c(-date, -code), names_to = 'var', values_to = 'value') %>% 
-    mutate(var = if_else(var %in% names(met_var_lookup), met_var_lookup[var], var))
+    mutate(var = if_else(var %in% names(met_var_lookup), met_var_lookup[var], var),
+           scenario = 'obs')
   
-}
-
-summarise_isd = function(isd_dframe) {
-  isd2 = isd_dframe %>% 
-    select(date, code, report_type:last(names(.))) %>% 
-    mutate(obs_minute = minute(date), .after = date) %>% 
-    group_by(code, report_type, obs_minute)
+  noaa_dframe3
   
-  isd_dc = isd2 %>%
-    summarise(across(any_of(c('ws', 'wd', 'air_temp', 'atmos_pres', 'dew_point', 'precip_raw')), ~mean(!is.na(.x))*100)) %>%
-    ungroup() %>% 
-    left_join(tally(isd2), .)
-  
-  
-  # precip_summary = isd2 %>% 
-  #   select(date, matches('precip')) %>%
-  #   mutate(precip_code = as.numeric(precip_code)) %>%
-  #   mutate(obs_minute = minute(date), .after = date) %>% 
-  #   filter(precip_qc %in% c('1', '5'))
 }
 
 format_mobs_to_plot = function(mobs_lframe) {
