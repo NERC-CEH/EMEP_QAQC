@@ -150,7 +150,7 @@ noaa_list = noaa_data_pths %>%
   map(read_rds) %>% 
   map(~pivot_longer(.x, cols = c(-date, -code, -scenario), names_to = 'var', values_to = 'value'))
 
-mobs_list = reduce(c(wrf_data_list, noaa_list), bind_rows) %>% 
+mobs_list = reduce(c(wrf_data_list2, noaa_list), bind_rows) %>% 
   group_split(code) %>%
   future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var, scenario), values_from = value)) %>% 
   map(~mutate(.x, precip_mod = if_else(!is.na(precip_obs), precip_mod, NA))) %>% 
