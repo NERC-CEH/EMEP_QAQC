@@ -108,7 +108,7 @@ This report evaluates the `r WRF_RUN_DESCRIPTOR` model run. The report has been 
 ```{r collate_mobs, include = F, eval = COLLATE_MOBS}
 wrf_files = WRF_DIR %>% 
   dir_ls() %>% 
-  str_subset(WRF_DOMAIN)
+  str_subset(str_c('wrfout_',WRF_DOMAIN))
 
 #get modelled year from the first file
 yr = ncpy$Dataset(wrf_files[1]) %>% 
@@ -117,46 +117,7 @@ yr = ncpy$Dataset(wrf_files[1]) %>%
   unique() %>% 
   as.integer()
 
-met_sites = get_isd_sites(yr)
-
-#extract model domain x,y dimension sizes
-sn_dim = ncpy$Dataset(wrf_files[1])$dimensions$south_north$size
-we_dim = ncpy$Dataset(wrf_files[1])$dimensions$west_east$size
-
-
-#extract site indeces and filter out those outside the model domain
-met_indeces = wrf$ll_to_xy(ncpy$Dataset(wrf_files[1]), latitude = met_sites$latitude, longitude = met_sites$longitude, meta = F)
-met_indeces = as_tibble(met_indeces, .name_repair = ~met_sites$code) %>% 
-  mutate(index = c('i', 'j')) %>% 
-  pivot_longer(-index, names_to = 'code', values_to = 'val') %>%
-  pivot_wider(id_cols = code, names_from = index, values_from = val) %>% 
-  filter(between(i, 0, we_dim - 1),between(j, 0, sn_dim - 1)) # python is 0-start index
-
-sites_geo = met_sites %>% 
-  filter(code %in% met_indeces$code)
-
-for (s in seq_along(SITES_SAMPLING_TYPE)) {
-  sites_geo  = sites_geo %>%
-  sample_sites(type = SITES_SAMPLING_TYPE[[s]],
-               selector = SITES_SAMPLING_SELECTOR[[s]],
-               n = N_SITES[[s]])
-}
-
-#write out sites used in the qaqc
-#check if Sites_used file already present and increase numbering if needed
-sites_used_files = dir_ls(data_pth_out, regexp = '(S|s)ites.*\\.rds')
-if (length(sites_used_files) == 0) {
-  write_rds(sites_geo, path(data_pth_out, '00Sites_used.rds'))
-} else {
-  n = sites_used_files %>%
-    path_file() %>%
-    str_extract('\\d*') %>%
-    as.integer() %>%
-    max(na.rm = T) + 1
-  n_string = n %>%
-    str_pad(2, side = 'left', pad = '0')
-  write_rds(sites_geo, path(data_pth_out, paste0(n_string,'Sites_used.rds')))
-}
+sites_geo = read_rds(path(OBS_DIR, '00Sites_used.rds'))
 
 #extract site indexes
 met_index_xr = wrf$ll_to_xy(ncpy$Dataset(wrf_files[1]), latitude = sites_geo$latitude, longitude = sites_geo$longitude, meta = T)
@@ -174,42 +135,32 @@ wrf_data_list = wrf_data_tlist$result[is_ok] %>%
   bind_rows() %>%
   split(.$code)
 write_rds(wrf_data_list, path(data_pth_out, 'wrf_data_list.rds'))
-  
-  
+
 #calculate precip 
 wrf_data_list = bind_rows(wrf_data_list) %>% 
   group_split(code) %>% 
   future_map(calculate_wrf_precip) %>% 
   map(~mutate(.x, scenario = 'mod')) 
 
-names(wrf_data_list) = wrf_data_list %>% 
-  map_chr(~pull(.x, code) %>% unique)
+noaa_data_pths = dir_ls(OBS_DIR) %>% 
+  str_subset('obs\\.rds') %>% 
+  str_subset('mod_obs', negate = T)
 
-#download observation data safely
-noaa_tlist = future_map(names(wrf_data_list), safely(importNOAA), year = yr) %>% 
-  transpose()
+noaa_list = noaa_data_pths %>% 
+  map(read_rds) %>% 
+  map(~pivot_longer(.x, cols = c(-date, -code, -scenario), names_to = 'var', values_to = 'value'))
 
-is_ok <- noaa_tlist$error %>%
-  map_lgl(is_null)
-
-noaa_list = noaa_tlist$result[is_ok] %>% 
-  compact() %>% 
-  future_map(format_NOAA) %>% 
-  future_map(~mutate(.x, scenario = 'obs'))
-
-names(noaa_list) = noaa_list %>% 
-  map_chr(~pull(.x, code) %>% unique() %>% as.character())
-
-wrf_data_list2 = wrf_data_list[names(noaa_list)]
-
-mobs_list = reduce(c(wrf_data_list2, noaa_list), bind_rows) %>% 
+mobs_list = reduce(c(wrf_data_list, noaa_list), bind_rows) %>% 
   group_split(code) %>%
+  future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var, scenario), values_from = value)) %>% 
+  map(~mutate(.x, precip_mod = if_else(!is.na(precip_obs), precip_mod, NA))) %>% 
+  map(~select(.x, -precip_code_obs)) %>% 
+  future_map(~pivot_longer(.x, cols = c(-date, -code), names_to = c('var', 'scenario'), names_sep = '_', values_to = 'value')) %>% 
   future_map(~pivot_wider(.x, id_cols = c(date, code, var), names_from = scenario, values_from = value), .options = furrr_options(seed = T))
 
 names(mobs_list) = mobs_list %>% 
   map_chr(~pull(.x, code) %>% unique)
-rm(wrf_data_list, wrf_data_tlist, wrf_data_list2, noaa_list, noaa_tlist)
-  
+
 mobs_wide = mobs_list %>%
   future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var), values_from = c(obs, mod)), .options = furrr_options(seed = T))
 
@@ -254,6 +205,15 @@ if (is.null(MOBS_GROUPING_VAR)) {
 
 ```{r modStats, include = F, eval = (EVALUATE_MOBS || PLOT_MOBS)}
 #for modstats convert degC to K and drop precip and wd
+
+dodgy_sites_lgl = mobs_list %>%
+  map_chr(~class(.x$obs)) %>% 
+  str_detect('list')
+
+dodgy_sites = names(mobs_list)[dodgy_sites_lgl]
+mobs_list = discard_at(mobs_list, dodgy_sites)
+
+
 mobs_list2_K = mobs_list %>%
   future_map(~filter(.x, year(date) == min(year(date)))) %>% 
   future_map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 

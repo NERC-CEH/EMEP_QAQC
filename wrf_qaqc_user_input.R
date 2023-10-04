@@ -13,6 +13,7 @@ WRF_DIR = '/gpfs01/home/emep4uk/WRF/STORED_WRF_RUNS/UKSCAPE/WRF4.2.2/2018'
 WRF_DOMAIN = 'd03'
 WRF_RUN_DESCRIPTOR = 'WRF4.2.2 UKSCAPE 2018'
 
+OBS_DIR = 'default' #default is the Data subdirectory in the QAQC_DIR but can be any previous qaqc run data - make sure both the domain and year are the same!!!
 REF_MOBS_DIR = NA
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
@@ -41,6 +42,7 @@ SITES_SAMPLING_SELECTOR = list('airport', NULL)
 N_SITES = list(NULL, 150)
 
 # Other parameters --------------------------------------------------------------
+OBS_REPORT_TYPE = c('FM-12') #the source of the observation. FM-12 is SYNOP data
 MODSTATS_STATS = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r')            #choose stats for model evaluation
 MOBS_THRESHOLD = 75            # mobs stats calculated for sites with data capture >= MOBS_THRESHOLD 
 MOBS_TZONE = 'UTC' # timezone  MOBS time series plots are shown in. For options run OlsonNames()
@@ -81,5 +83,9 @@ maps_pth_out = dir_create(path(QAQC_DIR, 'Maps'))
 plots_pth_out = dir_create(path(QAQC_DIR, 'Plots'))
 tables_pth_out = dir_create(path(QAQC_DIR, 'Tables'))
 data_pth_out = dir_create(path(QAQC_DIR, 'Data'))
+
+if (OBS_DIR == 'default') {
+  OBS_DIR = data_pth_out
+}
 
 
