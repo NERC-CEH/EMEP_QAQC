@@ -994,6 +994,12 @@ assess_noaa = function(noaa_dframe) {
 }
 
 format_noaa = function(noaa_dframe) {
+  
+  #ensure obs_minute is the actual value in the data and is not already there from previous assessment
+  #as it can be change by e.g. rounding up to the top of the hour
+  noaa_dframe = noaa_dframe %>% 
+    mutate(obs_minute = minute(date))
+  
   assert(check_number(unique(noaa_dframe$obs_minute)),
          check_number(length(unique(noaa_dframe$report_type))),
          combine = 'and')
