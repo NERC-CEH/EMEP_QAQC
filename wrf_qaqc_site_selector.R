@@ -17,7 +17,7 @@ np = import('numpy')
 source('emep_qaqc_funcs.R')
 source('wrf_qaqc_user_input.R')
 
-future::plan(multicore)
+future::plan(multicore, workers = 8)
 
 # MAIN --------------------------------------------------------------------
 
@@ -84,7 +84,7 @@ noaa_summary = raw_obs %>%
 
 #filter the available stations as desired
 suitable = noaa_summary %>%
-  filter(obs_minute == 0, !is.na(precip_code), ws_dc >= 75, air_temp_dc >= 75) %>% distinct(code, report_type, obs_minute, .keep_all = T) 
+  filter(obs_minute == 0, !is.na(precip_code), ws_dc >= MOBS_THRESHOLD, air_temp_dc >= MOBS_THRESHOLD) %>% distinct(code, report_type, obs_minute, .keep_all = T) 
 
 #and write the suitable sites in a file
 write_rds(suitable, path(data_pth_out, paste0('Suitable_sites_in_domain_', WRF_DOMAIN, '_summary'), ext = 'rds'))

@@ -42,7 +42,6 @@ SITES_SAMPLING_SELECTOR = list('airport', NULL)
 N_SITES = list(NULL, 150)
 
 # Other parameters --------------------------------------------------------------
-OBS_REPORT_TYPE = c('FM-12') #the source of the observation. FM-12 is SYNOP data
 MODSTATS_STATS = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r')            #choose stats for model evaluation
 MOBS_THRESHOLD = 75            # mobs stats calculated for sites with data capture >= MOBS_THRESHOLD 
 MOBS_TZONE = 'UTC' # timezone  MOBS time series plots are shown in. For options run OlsonNames()

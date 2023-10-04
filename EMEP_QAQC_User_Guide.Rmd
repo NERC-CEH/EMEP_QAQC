@@ -28,6 +28,10 @@ It is assumed that you have access to Polar HPC at UKCEH, have the conda emep_qa
 # Running the QAQC
 The QAQC suite consists of several R scripts and some auxiliary files such as inventory emissions, area masks and others. The key file is **emep_qaqc_user_input.R** for EMEP or **wrf_qaqc_user_input.R** for WRF. This is where the vast majority of parameters are set. The WRF input file is a modified and simplified version of the EMEP input file. All other files are shared for both WRF and EMEP QA/QC. The files are described below.
 
+**To run your qaqc you need to activate the appropriate conda environment (conda activate 'name of the environment') and then submit the Renderer.R file to the queue. Make sure you edit the file depending on whether you run wrf or emep qaqc** e.g. source('emep_qaqc_user_input.R') vs source('wrf_qaqc_user_input.R') and render('EMEP_QAQC_Report.Rmd', ...) vs render('WRF_QAQC_Report.Rmd', ...).
+
+# QAQC R Scripts Description
+
 ## emep_qaqc_user_input.R
 At the top of the user input file there are proj4 definitions of the coordinate systems (CS) currently used in EMEP4UK modelling. These should not be edited unless a new CS is introduced in our modelling. Following the CS definitions is the USER INPUT section of the file which should be edited as needed for your QAQC run.
 \
@@ -59,7 +63,11 @@ Emission differences exceeding the percentage set in EMISS_DIFF_THRESHOLD (set i
 \
 
 #### COMPARE_BUDGET_MSC
-This tasks calculates the budget or mean surface concentrations (MSC) for EMEP output species. You set the evaluated EMEP species by naming them in the BUDGET_VARS vector (*Other parameters* section). For example: `r BUDGET_VARS = c('SURF_ug_NO2', 'DDEP_SOX')`. By default the BUDGET_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the budg_factor parameter set are used. For the budget calculation all of budg_factor, budg_unit and budg_stat parameters must be provided. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. For your information a table listing all species for which the budget is calculated is printed in the report.
+This tasks calculates the budget or mean surface concentrations (MSC) for EMEP output species. You set the evaluated EMEP species by naming them in the BUDGET_VARS vector (*Other parameters* section). For example:
+```{r budget_example, eval = F}
+BUDGET_VARS = c('SURF_ug_NO2', 'DDEP_SOX')
+```
+By default the BUDGET_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the budg_factor parameter set are used. For the budget calculation all of budg_factor, budg_unit and budg_stat parameters must be provided. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. For your information a table listing all species for which the budget is calculated is printed in the report.
 \
 \
 The calculated values are automatically saved in a table. You can limit the area over which the budget or MSCs are calculated by providing a path to an area mask file. The file must be in either a geopackage (.gpkg) or shapefile (.shp) format and is set in the BUDGET_MASK_FNAME variable (*Input dirs and fnames* section). If masking is not required set the BUDGET_MASK_FNAME to "NA".
@@ -73,7 +81,11 @@ This tasks also prints a pdf document with maps for each of the EMEP species for
 \
 
 #### PLOT_COMPARISON_MAPS
-This task plots maps of EMEP species and compares them with those in the reference run. For each species four maps are plotted: the test run, the reference run, absolute difference (test - ref) and relative difference(test - ref in %). The differences are only plotted if the test and reference domains and resolutions are identical. As in the budget calculation, you set the mapped species by naming them in the COMP_MAP_VARS vector (*Other parameters* section). For example: `r COMP_MAP_VARS = c('SURF_ug_NO2', 'DDEP_SOX')`. By default, the COMP_MAP_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the map_levs parameters set are used. In addition, the map_difflevs, map_diffprecision and units parameters must be set. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. A table listing all species for which the maps are plotted is printed in the report for you to check.
+This task plots maps of EMEP species and compares them with those in the reference run. For each species four maps are plotted: the test run, the reference run, absolute difference (test - ref) and relative difference(test - ref in %). The differences are only plotted if the test and reference domains and resolutions are identical. As in the budget calculation, you set the mapped species by naming them in the COMP_MAP_VARS vector (*Other parameters* section). For example:
+```{r comp_maps_example, eval = F}
+COMP_MAP_VARS = c('SURF_ug_NO2', 'DDEP_SOX')
+```
+By default, the COMP_MAP_VARS parameter is set to 'all' in which case all EMEP species that are present in the VAR_PARAMS_LIST list in the **emep_vars_parameters.R** file and have the map_levs parameters set are used. In addition, the map_difflevs, map_diffprecision and units parameters must be set. Add species and/or parameters to the VAR_PARAMS_LIST as necessary. A table listing all species for which the maps are plotted is printed in the report for you to check.
 \
 \
 The maps are saved in a pdf document. A selection of species set in the COMP_MAP_VARS_REPORT is printed in the report. If both outer and inner modelling domains are used the inner domain only maps will be plotted immediately after the composite of outer + inner maps for each species. 
@@ -211,15 +223,23 @@ git clone https://github.com/NERC-CEH/EMEP_QAQC.git
 To install conda run the shell script that you will find in **/home/mvi/Miniconda3-latest-Linux-x86_64.sh**, then restart your shell.
 
 ## Conda environment installation {-}
-Once you have conda installed in your home directory, move to the directory with the cloned QAQC git repo and import the environment from the EMEP_QAQC_ENV.yml file:
+Once you have conda installed in your home directory, move to the directory with the cloned QAQC git repo and import the environment from the EMEP_QAQC_ENV2.txt (or WRF_QAQC_ENV2.txt) file:
 ```{bash install_env, eval = F}
-conda env create -n emep_qaqc --file EMEP_QAQC_ENV.yml
+conda create -n emep_qaqc2 --file EMEP_QAQC_ENV2.txt
+conda create -n wrf_qaqc2 --file WRF_QAQC_ENV2.txt
 ```
 
 Then activate the environment with 
 ```{bash activate_env, eval = F}
-conda activate emep_qaqc
+conda activate emep_qaqc2
 ```
 You are then ready to run your QAQC
 
+## Conda environment update {-}
+The safest way to update either environment is to remove the existing environment:
+```{bash remove_env, eval = F}
+conda remove -n emep_qaqc2 --all
+conda remove -n wrf_qaqc2 --all
+```
 
+and then reinstalling it from the environment txt file as above 
