@@ -1006,8 +1006,8 @@ format_noaa = function(noaa_dframe) {
                      atmos_pres = 'slp', 
                      RH = 'rh2')
   
-  full_year_range = seq.POSIXt(from = as_datetime(str_c(unique(year(noaa_dframe$date)), '-01-01 00:', str_pad(unique(noaa_dframe$obs_minute), width = 2, side = 'left', pad = '0'), ':00')),
-                               to = as_datetime(str_c(unique(year(noaa_dframe$date)), '-12-31 23:', str_pad(unique(noaa_dframe$obs_minute), width = 2, side = 'left', pad = '0'), ':00')),
+  full_year_range = seq.POSIXt(from = as_datetime(str_c(unique(year(noaa_dframe$date))[1], '-01-01 00:', str_pad(unique(noaa_dframe$obs_minute), width = 2, side = 'left', pad = '0'), ':00')),
+                               to = as_datetime(str_c(unique(year(noaa_dframe$date))[1], '-12-31 23:', str_pad(unique(noaa_dframe$obs_minute), width = 2, side = 'left', pad = '0'), ':00')),
                                by = 'hour') %>% 
     as_datetime() %>% 
     as_tibble() %>% 
@@ -1046,6 +1046,11 @@ format_noaa = function(noaa_dframe) {
     
     noaa_dframe2 = noaa_dframe2 %>%
       rename(precip = precip_raw)
+  } else {
+    #create empty precip columns needed for merging with model data
+    noaa_dframe2 = noaa_dframe2 %>% 
+      mutate(precip = NA_real_,
+             precip_code = NA_real_)
   }
   
   noaa_dframe3 = noaa_dframe2 %>% 
