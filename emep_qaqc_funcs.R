@@ -923,6 +923,7 @@ my_importNOAA = function(code, year, pth = NULL) {
   if (!is.null(pth)) {
     write_rds(met_data, pth)
   }
+  met_data
 }
 
 clean_noaa = function(noaa_dframe) {
