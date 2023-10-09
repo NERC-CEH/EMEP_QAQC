@@ -2861,7 +2861,7 @@ format_maps_page_title = function(outer_test_pth = NULL, outer_ref_pth = NULL,
   if (length(compact(runs)) == 0) {
     stop('No EMEP file path provided')
   }
-  if (length(ncompact(runs)) == 4) {
+  if (length(compact(runs)) == 4) {
     domains = runs %>% 
       map_chr(~str_sub(.x, end = -4) %>% 
                 str_split('(emiss\\d{4}_)|(_\\d{4}_)') %>% 
