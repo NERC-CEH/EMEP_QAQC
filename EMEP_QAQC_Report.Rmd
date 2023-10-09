@@ -450,10 +450,11 @@ if (!is.null(BUDGET_MASK_FNAME)) {
       map(apply_area_mask, area_mask = budget_mask)
   )
 } else {
-  emep_budget2 = emep_budget %>%
+  emep_budget2 = emep_budget
   log_warn('Budget mask path: {BUDGET_MASK_FNAME}. Budget calculated for the full modelling domain.')
 }
-
+emep_budget2 = emep_budget2 %>% 
+  set_names(nm = EMEP_BUDGET_FNAME)
 budget_df = map_dfr(emep_budget2, calc_budget, VAR_PARAMS_LIST, .id = 'run') %>% 
   arrange(Variable) %>% 
   mutate(run = str_replace(run, '_[^_]+$', '')) %>% #drop characters after the last underscore (e.g. 'fullrun.nc')
