@@ -1900,6 +1900,7 @@ plot_mobs_stats_map = function(sites_df, mobs_stat = 'MB', basemap = c('world_to
   p_breaks[length(p_breaks)] = p_breaks[length(p_breaks)] * 1.001
   
   sites_df = sites_df %>%
+    drop_na({{mobs_stat}}) %>% 
     mutate(stat_cut = cut(.data[[mobs_stat]], right= F,  breaks = p_breaks, labels = p_labels, include.lowest = T))
   
   pal = colorFactor(palette = rev(p_colors), domain = rev(p_labels), ordered = T)
