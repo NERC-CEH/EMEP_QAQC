@@ -2880,7 +2880,7 @@ format_maps_page_title = function(outer_test_pth = NULL, outer_ref_pth = NULL,
   } else {
     test_title = compact(outer_test_pth, inner_test_pth) %>% 
       str_replace('_[^_]+$', '') #strip everything after the last underscore from filename
-    ref_title = coalesce(outer_ref_pth, inner_ref_pth) %>% 
+    ref_title = compact(outer_ref_pth, inner_ref_pth) %>% 
       str_replace('_[^_]+$', '')
     
   }
