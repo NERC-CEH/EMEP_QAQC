@@ -337,28 +337,50 @@ compare_file_size = function(test_dir, ref_dir) {
   d_content2
 }
 
-load_emep_data = function(emep_fname, emep_crs, vars = 'all', time_index = NULL) {
-  ###returns a list of stars_proxy objects containing vars
-  ###if vars are not in emep data, the function returns NULL
+read_emep = function(emep_fname, emep_crs, var = 'all', dims = c('i', 'j', 'time'), proxy = T, time_index = NULL) {
+  #reads emep data from a provided file name - value is a star_proxy object!!!
+  #crs needs to be given as stars automatically expects Earth to be an ellipsoid
+  #if var == 'all' it loads those vars which have dimensions set in dims
+  #can subset on time dimension but only for vars with 2 spatial and 1 time dimension
   
-  ###!!!WIP - time slicing needs finishing!!!
+  if (is.null(emep_fname)) return(NULL)
   
-  #This function loads vars data into a stars_proxy object
-  emep_fname = set_names(emep_fname)
-  
-  emep_vars = map(emep_fname, extract_nc_vars)
-  
-  if(all(vars != 'all')) {
-    #check if requested vars are in emep
-    emep_vars = map(emep_vars, base::intersect, vars)
-    if (any(lengths(emep_vars) == 0)) {
+  emep_tidync = emep_fname %>% 
+    tidync()
+  emep_vars = emep_tidync$variable$name
+
+  if (all(var != 'all')) {
+    selected_var = base::intersect(emep_vars, var)
+    if (length(selected_var) == 0) {
       return(NULL)
+    }
+  } else {
+    selected_dims = emep_tidync$dimension %>% 
+      filter(name %in% dims) %>% 
+      pull(id) %>% 
+      sort() %>% 
+      str_c('D', .) %>% 
+      str_c(collapse = ',')
+    
+    selected_var = emep_tidync$grid %>% 
+      unnest(col = variables) %>% 
+      filter(grid == selected_dims) %>% 
+      pull(variable)
+  }
+  
+  emep_data = read_stars(emep_fname, sub = selected_var, proxy = T, RasterIO = list(nXOff = 1, nYOff = 1)) %>% 
+    st_set_crs(emep_crs)
+  
+  if (!is.null(time_index)) {
+    if (all(names(dim(emep_data)) == c('x', 'y' ,'time'))) {
+      emep_data = emep_data[selected_var, , , time_index]
     }
   }
   
-  emep_data = map2(emep_fname, emep_vars, ~read_stars(.x, sub = .y, proxy = T, RasterIO = list(nXOff = 1, nYOff = 1))) %>% 
-    map2(emep_crs, ~st_set_crs(.x, value = .y))
-  
+  if (proxy == F) {
+    emep_data = emep_data %>% 
+      st_as_stars(curvilinear = NULL) #we don't want the output in curvilinear grid
+  }
   emep_data
 }
 
@@ -473,10 +495,37 @@ collate_obs_mod_nc = function(nc_pth, var_name_lookup, site_code = 'MY1', i_inde
   both
 }
 
-calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
-                               outer_test_fname = NA, outer_ref_fname = NA,
-                               inner_test_fname = NA, inner_ref_fname = NA,
-                               test_crs = NA, ref_crs = NA) {
+calc_diff_stars = function(stars1, stars2) {
+  if (is.null(names(stars1)) || is.null(names(stars2))) {
+    warn('both stars objects must be named. returning NULL')
+    return(NULL)
+  }
+  stars_diff = tryCatch(
+    error = function(cnd) {
+      list(stars1, stars2)
+    },
+    c(stars1, stars2) %>% 
+      mutate(abs_diff := !!sym(names(stars1)) - !!sym(names(stars2)),
+             rel_diff := (!!sym(names(stars1)) - !!sym(names(stars2)))/!!sym(names(stars2)) * 100)
+  )
+  
+  if ('abs_diff' %in% names(stars_diff)) {
+    if (all(near(as.numeric(stars_diff$abs_diff), 0))) {
+      stars_diff = stars_diff %>% 
+        mutate(abs_diff = NA_real_,
+               rel_diff = NA_real_)
+    }
+    stars_diff = names(stars_diff) %>% 
+      map(select, .data = stars_diff)
+  }
+  stars_diff
+}
+
+calculate_emep_diff = function(emep_var,
+                               outer_test_fname = NULL, outer_ref_fname = NULL,
+                               inner_test_fname = NULL, inner_ref_fname = NULL,
+                               test_crs = NULL, ref_crs = NULL, time_index = NULL,
+                               run_labels = c('test', 'ref')) {
   
   if (any(is.na(c(test_crs, ref_crs)))) stop('Both test_crs and ref_crs MUST be provided!')
   
@@ -485,89 +534,100 @@ calculate_emep_diff = function(var, run_labels = c('test', 'ref'),
     set_names()
   if (!all(file_exists(na.omit(emep_fnames)))) stop ('Invalid file path(s)')
   
-  plot_mode = case_when(all(!is.na(emep_fnames) == c(T,T,T,T)) ~ 'both_diff',
-                        all(!is.na(emep_fnames) == c(T,T,F,F)) ~ 'outer_diff',
-                        all(!is.na(emep_fnames) == c(F,F,T,T)) ~ 'inner_diff',
-                        TRUE ~ NA_character_
-  )
-  if (is.na(plot_mode)) stop('invalid combination of paths')
+  emep_stars = pmap(list(emep_fname = emep_fnames, emep_crs = c(test_crs, ref_crs, test_crs, ref_crs)),
+                   read_emep, var = emep_var, proxy = F, time_index = time_index)
   
-  calc_diff_stars = function(stars1, stars2) {
-    
-    stars_diff = tryCatch(
-      error = function(cnd) {
-        names(stars1) = run_labels[1]
-        names(stars2) = run_labels[2]
-        list(stars1, stars2)
-      },
-      c(stars1, stars2) %>% 
-        set_names(run_labels) %>% 
-        mutate(abs_diff := !!sym(run_labels[1]) - !!sym(run_labels[2]),
-               rel_diff := (!!sym(run_labels[1]) - !!sym(run_labels[2]))/!!sym(run_labels[2]) * 100)
-    )
-    
-    if ('abs_diff' %in% names(stars_diff)) {
-      if (all(near(as.numeric(stars_diff$abs_diff), 0))) {
-        stars_diff = stars_diff %>% 
-          mutate(abs_diff = NA_real_,
-                 rel_diff = NA_real_)
+  if (length(compact(emep_stars)) == 0) return(NULL)
+  
+  out = vector('list', length = 2)
+  
+  for (i in 1:2) {
+    stars1 = emep_stars[[i*2 - 1]]
+    stars2 = emep_stars[[i*2]]
+    if (is.null(stars1) || is.null(stars2)) {
+      out[[i]] = NULL
+    } else {
+      names(stars1) = run_labels[1]
+      names(stars2) = run_labels[2]
+      stars_diff = tryCatch(
+        error = function(cnd) {
+          list(stars1, stars2)
+        },
+        c(stars1, stars2) %>% 
+          mutate(abs_diff := !!sym(names(stars1)) - !!sym(names(stars2)),
+                 rel_diff := (!!sym(names(stars1)) - !!sym(names(stars2)))/!!sym(names(stars2)) * 100)
+      )
+      
+      if ('abs_diff' %in% names(stars_diff)) {
+        if (all(near(as.numeric(stars_diff$abs_diff), 0))) {
+          stars_diff = stars_diff %>% 
+            mutate(abs_diff = NA_real_,
+                   rel_diff = NA_real_)
+        }
+        stars_diff = names(stars_diff) %>% 
+          map(select, .data = stars_diff)
       }
-      stars_diff = names(stars_diff) %>% 
-        map(select, .data = stars_diff)
-    }
-    stars_diff
-  }
-  
-  #calculate the abs and rel differences between test and reference runs
-  if (plot_mode =='both_diff') {
-    
-    emep_data = load_emep_data(emep_fnames, rep(c(test_crs, ref_crs), 2), vars = var)
-    if (is.null(emep_data)) return(NULL)
-    
-    emep_data = map(emep_data, st_as_stars, curvilinear = NULL) %>% 
-      map(~set_names(.x, nm = var))
-    
-    o_t = emep_data[[outer_test_fname]]
-    o_r = emep_data[[outer_ref_fname]]
-    i_t = emep_data[[inner_test_fname]]
-    i_r = emep_data[[inner_ref_fname]]
-    
-    o_diff = calc_diff_stars(o_t, o_r)
-    i_diff = calc_diff_stars(i_t, i_r)
-    return(list(o_diff, i_diff) %>% 
-             set_names(str_c(var, c('outer', 'inner'), sep = '_')))
-  }
-  
-  if (plot_mode == 'outer_diff') {
-    
-    emep_data = load_emep_data(na.omit(emep_fnames), c(test_crs, ref_crs), vars = var)
-    if (is.null(emep_data)) return(NULL)
-    emep_data = map(emep_data, st_as_stars, curvilinear = NULL) %>% 
-      map(~set_names(.x, nm = var))
-    
-    o_t = emep_data[[outer_test_fname]]
-    o_r = emep_data[[outer_ref_fname]]
-    o_diff = calc_diff_stars(o_t, o_r)
-    return(list(o_diff) %>% 
-             set_names(str_c(var, c('outer'), sep = '_')))
+      out[[i]] = stars_diff
+      names(out)[[i]] = str_c(emep_var, c('outer', 'inner')[i], sep = '_')
+    } 
     
   }
-  
-  if (plot_mode == 'inner_diff') {
-    
-    emep_data = load_emep_data(na.omit(emep_fnames), c(test_crs, ref_crs), vars = var)
-    if (is.null(emep_data)) return(NULL)
-    
-    emep_data = map(emep_data, st_as_stars, curvilinear = NULL) %>% 
-      map(~set_names(.x, nm = var))
-    
-    i_t = emep_data[[inner_test_fname]]
-    i_r = emep_data[[inner_ref_fname]]
-    i_diff = calc_diff_stars(i_t, i_r)
-    return(list(i_diff) %>% 
-             set_names(str_c(var, c('inner'), sep = '_')))
+  if (all(map_lgl(out, is.null))) {
+    return(NULL)
+  } else {
+    out = compact(out)
+    out
   }
   
+}
+
+calculate_emep_diff2 = function(outer_test_stars = NULL, outer_ref_stars = NULL,
+                                inner_test_stars = NULL, inner_ref_stars = NULL,
+                                run_labels = c('test', 'ref')) {
+  
+  #extract var name
+  emep_var = map_chr(compact(list(outer_test_stars, outer_ref_stars, inner_test_stars, inner_ref_stars)), names) %>% 
+    na.omit() %>% 
+    unique()
+  
+  emep_stars = list(outer_test_stars, outer_ref_stars, inner_test_stars, inner_ref_stars)
+
+  out = vector('list', length = 2)
+  
+  for (i in 1:2) {
+    stars1 = emep_stars[[i*2 - 1]]
+    stars2 = emep_stars[[i*2]]
+    if (is.null(stars1) || is.null(stars2)) {
+      out[[i]] = NULL
+    } else {
+      names(stars1) = run_labels[1]
+      names(stars2) = run_labels[2]
+      stars_diff = tryCatch(
+        error = function(cnd) {
+          list(stars1, stars2)
+        },
+        c(stars1, stars2) %>% 
+          mutate(abs_diff := !!sym(names(stars1)) - !!sym(names(stars2)),
+                 rel_diff := (!!sym(names(stars1)) - !!sym(names(stars2)))/!!sym(names(stars2)) * 100)
+      )
+      
+      if ('abs_diff' %in% names(stars_diff)) {
+        if (all(near(as.numeric(stars_diff$abs_diff), 0))) {
+          stars_diff = stars_diff %>% 
+            mutate(abs_diff = NA_real_,
+                   rel_diff = NA_real_)
+        }
+        stars_diff = names(stars_diff) %>% 
+          map(select, .data = stars_diff)
+      }
+      out[[i]] = stars_diff
+      names(out)[[i]] = str_c(emep_var, c('outer', 'inner')[i], sep = '_')
+    } 
+    
+  }
+
+  out = compact(out)  
+
 }
 
 read_RunLog_emissions = function(RunLog_pth) {
@@ -2550,7 +2610,7 @@ theme_emep_diffmap = function(emep_plot) {
           legend.title = element_text(size = 10),
           legend.text = element_text(size = 8),
           panel.background = element_rect(fill = 'white', color = NA),
-          panel.border = element_rect(color = 'black', size = 0.3, fill = NA),
+          panel.border = element_rect(color = 'black', linewidth = 0.3, fill = NA),
           plot.title = element_text(size = 10, hjust = 0.5, face = 'bold'),
           plot.margin = margin(8, 5.5, 5.5, 5.5, unit = 'pt'))
 }
@@ -2567,7 +2627,7 @@ theme_DSC = function(emep_plot) {
           plot.title = element_text(hjust = 0.5, size = 20, color = '#473C8B'),
           plot.subtitle = element_text(hjust = 0.5, size = 12),
           panel.background = element_rect(fill = 'gray90', color = 'black'),
-          panel.border = element_rect(color = 'black', size = 0.3, fill = NA)
+          panel.border = element_rect(color = 'black', linewidth = 0.3, fill = NA)
     )
 }
 
@@ -2634,8 +2694,8 @@ extract_domain_from_fpath = function(fpath) {
 select_file_from_dir = function(EMEP_dir, fname = 'fullrun') {
   #safely extract file name from directory (for comp maps calculations)
   #returns NA if EMEP_dir is NA without crashing
-  if(is.na(EMEP_dir)) {
-    out = NA
+  if(is.null(EMEP_dir)) {
+    out = NULL
   } else {
     out = dir_ls(EMEP_dir) %>% 
       str_subset(fname)
@@ -2789,19 +2849,19 @@ mobs_to_long = function(mobs_dframe) {
   mobs_long
 }
 
-format_maps_page_title = function(outer_test_pth = NA, outer_ref_pth = NA,
-                                  inner_test_pth = NA, inner_ref_pth = NA,
+format_maps_page_title = function(outer_test_pth = NULL, outer_ref_pth = NULL,
+                                  inner_test_pth = NULL, inner_ref_pth = NULL,
                                   run_labels = c('test_label', 'ref_label')) {
   
   ### outputs EMEP run (and domain) name for page titles in pdf outputs
   
   # use just the filename portion of the path
-  runs = c(outer_test_pth, outer_ref_pth, inner_test_pth, inner_ref_pth)
+  runs = list(outer_test_pth, outer_ref_pth, inner_test_pth, inner_ref_pth)
   
-  if (length(na.omit(runs)) == 0) {
+  if (length(compact(runs)) == 0) {
     stop('No EMEP file path provided')
   }
-  if (length(na.omit(runs)) == 4) {
+  if (length(ncompact(runs)) == 4) {
     domains = runs %>% 
       map_chr(~str_sub(.x, end = -4) %>% 
                 str_split('(emiss\\d{4}_)|(_\\d{4}_)') %>% 
@@ -2818,7 +2878,7 @@ format_maps_page_title = function(outer_test_pth = NA, outer_ref_pth = NA,
       str_replace('_[^_]+$', '')
     
   } else {
-    test_title = coalesce(outer_test_pth, inner_test_pth) %>% 
+    test_title = compact(outer_test_pth, inner_test_pth) %>% 
       str_replace('_[^_]+$', '') #strip everything after the last underscore from filename
     ref_title = coalesce(outer_ref_pth, inner_ref_pth) %>% 
       str_replace('_[^_]+$', '')
