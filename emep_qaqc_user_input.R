@@ -28,27 +28,27 @@ PLOT_MOBS_MAPS = T
 # Input dirs and fnames -------------------------------------------------------------------
 ### provide ABSOLUTE paths - for OUTER (e.g. EU) and INNER (e.g. UK) domains
 ###                        - TEST is the RUN that needs QAQC, REF is the reference run for comparison
-###                           - not all fnames are required, in which case set them to NA
-###                        - EMEP_BUDGET for calculating budget (can be a vector of paths for comparison)
+###                           - not all dirs are required, in which case set them to NULL
+###                        - EMEP_BUDGET for calculating budget (can be a list of dirs for comparison)
 ###                           - only first element in EMEP_BUDGET_FNAME is used for deposition and conc plots
 ###                           - BUDGET_MASK is a shp (or.gpkg) file for area masking (e.g. UK land)
 ###                        - TEST_OBS is the run used for comparisons with observations
 
-###set directories to NA if not needed
-TEST_OUTER_DIR = NA
-TEST_INNER_DIR = NA
-REF_OUTER_DIR = NA
-REF_INNER_DIR = NA
+###set directories to NULL if not needed
+TEST_OUTER_DIR = NULL
+TEST_INNER_DIR = NULL
+REF_OUTER_DIR = NULL
+REF_INNER_DIR = NULL
 
 FULLRUN_OUTER_TRIMMED = F                          #set to T if fullrun output has been trimmed to match reference run domain
 FULLRUN_INNER_TRIMMED = F
 
-EMEP_BUDGET_DIR = c(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
+EMEP_BUDGET_DIR = list(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
                                                    #the test fname must be the first element of the vector
 
-BUDGET_MASK_FNAME = NA # gpks or shp files in Area_masks directory or own supplied
-EMISSION_INVENTORY_PTH = NA #choose one of the EMEP emissions files found in Emission_Inventory_files directory
-REF_MOBS_DIR = NA
+BUDGET_MASK_FNAME = NULL # gpks or shp files in Area_masks directory or own supplied
+EMISSION_INVENTORY_PTH = NULL #choose one of the EMEP emissions files found in Emission_Inventory_files directory
+REF_MOBS_DIR = NULL
 
 PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
 
@@ -151,7 +151,7 @@ PPP = 4                        #plots per page for obs-mod - do NOT change (unle
 # output paths ------------------------------------------------------------
 
 ### please do not change any output paths unless you have a very good reason (there isn't one!)
-if (is.na(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
+if (is.null(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
   qaqc_pth_out = dir_create(path(QAQC_DIR))
 } else {
   qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))

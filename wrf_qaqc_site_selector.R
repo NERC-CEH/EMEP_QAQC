@@ -84,7 +84,7 @@ noaa_summary = raw_obs %>%
 
 #filter the available stations as desired
 suitable = noaa_summary %>%
-  filter(obs_minute == 0, !is.na(precip_code), ws_dc >= MOBS_THRESHOLD, air_temp_dc >= MOBS_THRESHOLD) %>% distinct(code, report_type, obs_minute, .keep_all = T) 
+  filter(ws_dc >= MOBS_THRESHOLD, air_temp_dc >= MOBS_THRESHOLD) %>% distinct(code, report_type, obs_minute, .keep_all = T) 
 
 #and write the suitable sites in a file
 write_rds(suitable, path(data_pth_out, paste0('Suitable_sites_in_domain_', WRF_DOMAIN, '_summary'), ext = 'rds'))
@@ -95,6 +95,7 @@ noaa_list = map_chr(suitable$code, str_subset, string = raw_obs) %>%
   future_map(read_rds) %>% 
   future_map(clean_noaa) %>% 
   future_map(~semi_join(.x, suitable, by = c('code', 'report_type', 'obs_minute'))) %>% 
+  future_map(~mutate(.x, date = ceiling_date(date, unit = 'hour'))) %>% 
   future_map(format_noaa) %>% 
   future_map(~pivot_wider(.x, id_cols = c(date, code, scenario), names_from = var, values_from = value)) %>% 
   future_walk2(.y = path(data_pth_out, paste0(suitable$code, '_obs'), ext = 'rds'), write_rds)

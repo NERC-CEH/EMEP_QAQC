@@ -9,6 +9,7 @@ output:
 ```{r setup, include=FALSE}
 library(knitr)
 library(ncmeta)
+library(tidync)
 library(tidyverse)
 library(fs)
 library(sf)
@@ -199,7 +200,7 @@ log_separator(separator = ' ')
 log_layout(layout_glue)
 log_with_separator('COMPARE_EMISSIONS task', separator = '-')
 
-if (!is.na(EMISSION_INVENTORY_PTH)) {
+if (!is.null(EMISSION_INVENTORY_PTH)) {
   log_info('Emission inventory path: {path_abs(EMISSION_INVENTORY_PTH)}')
   emiss_list0 = map(c(TEST_OUTER_DIR, TEST_INNER_DIR), safely(compare_inv_mod_emissions), emiss_inv_pth = EMISSION_INVENTORY_PTH) %>%
     transpose()
@@ -208,7 +209,7 @@ if (!is.na(EMISSION_INVENTORY_PTH)) {
     map_lgl(is_null)
   
   #logger
-  if (!is.na(TEST_OUTER_DIR)) {
+  if (!is.null(TEST_OUTER_DIR)) {
     if (emiss_is_ok[1]) {
       log_info('Model vs Inventory emission comparison for {outer_domain} domain SUCCESSFUL')
     } else {
@@ -217,7 +218,7 @@ if (!is.na(EMISSION_INVENTORY_PTH)) {
     }
   }
   
-  if (!is.na(TEST_INNER_DIR)) {
+  if (!is.null(TEST_INNER_DIR)) {
     if (emiss_is_ok[2]) {
       log_info('Model vs Inventory emission comparison for {inner_domain} domain SUCCESSFUL')
     } else {
@@ -279,7 +280,7 @@ MBS_is_ok = MBS_list0$error %>%
   map_lgl(is_null)
 
   #logger
-  if (!is.na(TEST_OUTER_DIR)) {
+  if (!is.null(TEST_OUTER_DIR)) {
     if (MBS_is_ok[1]) {
       log_info('Test vs Reference run emission comparison for {outer_domain} domain SUCCESSFUL')
     } else {
@@ -288,7 +289,7 @@ MBS_is_ok = MBS_list0$error %>%
     }
   }
   
-  if (!is.na(TEST_INNER_DIR)) {
+  if (!is.null(TEST_INNER_DIR)) {
     if (MBS_is_ok[2]) {
       log_info('Test vs Reference run emission comparison for {inner_domain} domain SUCCESSFUL')
     } else {
@@ -337,26 +338,26 @@ MBS_exceedance_tbls_fmted = MBS_exceedance_tbls %>%
 # Emissions 
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
+``` {asis, echo = COMPARE_EMISSIONS && is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS}
 An emission inventory file not supplied. A comparison between model and inventory emissions is not available. 
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) == 0, eval = COMPARE_EMISSIONS}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) == 0, eval = COMPARE_EMISSIONS}
 A comparison between the supplied inventory file and the test run emissions is currently not possible. 
 ```
 ``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
 ## `r outer_domain` Domain
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0 , eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.na(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0 , eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.null(EMISSION_INVENTORY_PTH)}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 ```
 
-``` {r, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.na(EMISSION_INVENTORY_PTH)}
+``` {r, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH)}
 emiss_exceedance_tbls_fmted[[1]]
 log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')
 ```
@@ -381,15 +382,15 @@ log_info('Test vs reference emission differences exceeding the {EMISS_DIFF_THRES
 ## `r inner_domain` Domain
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 ```
 
-``` {r, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.na(EMISSION_INVENTORY_PTH)}
+``` {r, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
 emiss_exceedance_tbls_fmted[[2]]
 log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {inner_domain} domain printed in report')
 ```
@@ -422,36 +423,34 @@ log_separator(separator = ' ')
 log_layout(layout_glue)
 log_with_separator('COMPARE_BUDGET_MSC task', separator = '-')
 
+#WIP - this needs to have some checks in case TEST_INNER_DIR is accidentally not used
 EMEP_BUDGET_FNAME = map_chr(EMEP_BUDGET_DIR, ~dir_ls(.) %>%
                               str_subset('fullrun'))
 
-emep_budget = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') %>% 
-  load_emep_data(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, vars = .) %>% 
-  st_as_stars(curvilinear = NULL)
+emep_budget_vars = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') 
+emep_budget = map2(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, ~read_emep(.x, .y, var = emep_budget_vars, proxy = F))
 
 #get test file modelled year to put into output filename
-mod_test_year = emep_budget[[1]] %>% 
+mod_test_year = EMEP_BUDGET_FNAME[1] %>%
+  read_stars(sub = names(emep_budget[[1]])[1]) %>%
   st_get_dimension_values('time') %>% 
   year()
 
-if (!is.na(BUDGET_MASK_FNAME)) {
+if (!is.null(BUDGET_MASK_FNAME)) {
   budget_mask = st_read(BUDGET_MASK_FNAME)
   log_info('Budget mask path: {path_abs(BUDGET_MASK_FNAME)}')
   
   emep_budget2 = tryCatch(
     error = function(cnd) {
-      emep_budget %>%
-        map(~st_as_stars(.x, curvilinear = NULL))
+      emep_budget
       log_warn('FAILED to apply area mask. Budget calculated for the full modelling domain.')
       log_debug(cnd)
     },
     emep_budget %>%
-      map(~st_as_stars(.x, curvilinear = NULL)) %>% 
       map(apply_area_mask, area_mask = budget_mask)
   )
 } else {
-  emep_budget2 = emep_budget %>%
-    map(st_as_stars, curvilinear = NULL)
+  emep_budget2 = emep_budget
   log_warn('Budget mask path: {BUDGET_MASK_FNAME}. Budget calculated for the full modelling domain.')
 }
 
@@ -584,14 +583,13 @@ if (FULLRUN_INNER_TRIMMED == T) {
 #collate emep_vars
 comp_map_vars = select_vars(vars = COMP_MAP_VARS, var_params_list = VAR_PARAMS_LIST, param = 'map_levs')
 
-
-comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(var = .x,
-                                                                  run_labels = RUN_LABELS,
-                                                                  outer_test_fname = select_file_from_dir(TEST_OUTER_DIR, fname = outer_file_tag),
-                                                                  outer_ref_fname = select_file_from_dir(REF_OUTER_DIR, fname = outer_file_tag),
-                                                                  inner_test_fname = select_file_from_dir(TEST_INNER_DIR, fname = inner_file_tag),
-                                                                  inner_ref_fname = select_file_from_dir(REF_INNER_DIR, fname = inner_file_tag),
-                                                                  test_crs = TEST_CRS, ref_crs = REF_CRS ), .options = furrr_options(seed = T))
+comp_map_data = future_map(comp_map_vars, ~calculate_emep_diff(emep_var = .x,
+                                                               run_labels = RUN_LABELS,
+                                                               outer_test_fname = select_file_from_dir(TEST_OUTER_DIR, fname = outer_file_tag),
+                                                               outer_ref_fname = select_file_from_dir(REF_OUTER_DIR, fname = outer_file_tag),
+                                                               inner_test_fname = select_file_from_dir(TEST_INNER_DIR, fname = inner_file_tag),
+                                                               inner_ref_fname = select_file_from_dir(REF_INNER_DIR, fname = inner_file_tag),
+                                                               test_crs = TEST_CRS, ref_crs = REF_CRS ), .options = furrr_options(seed = T))
 
 null_vars_lgl = comp_map_data %>% 
   map_lgl(is_null)
@@ -616,7 +614,7 @@ page_titles = format_maps_page_title(outer_test_pth = select_file_from_dir(TEST_
                                      run_labels = str_c(RUN_LABELS, ' run')) %>%
   rep(length(comp_plots_list))
 
-if (all(!is.na(c(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_DIR)))) {
+if (all(!map_lgl(list(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_DIR), is.null))) {
   #plot inner domain only if both outer and inner data provided
   comp_map_data_i = future_map(comp_map_data,  ~.x[matches('inner', vars = names(.x))], .options = furrr_options(seed = T))
   comp_plots_list_i = future_map(comp_map_data_i, plot_comp_maps, ncl_palette_dir = PALETTE_DIR, pretty_lab = PRETTY_LABS, .options = furrr_options(seed = T)) %>% 
@@ -723,7 +721,7 @@ log_layout(layout_glue)
 log_with_separator('COLLATE_MOBS task', separator = '-')
 
 #choose the inner domain run unless that's NA
-obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
+obs_dir = ifelse(!is.null(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
 
 #determine obs pollutants to be analysed
 mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>% 
@@ -758,10 +756,8 @@ log_info('Dataframe of obs sites (n = {nrow(sites_geo)}) created')
 
 #get a 2D slice of the EMEP output to check if all sites are in the modelled domain
 #loads quicker to check on the fullrun data
-emep_slice = load_emep_data(str_subset(dir_ls(obs_dir), 'fullrun'),
-                            emep_crs = TEST_CRS, vars = mobs_polls[1])[[1]] %>%
-  st_as_stars(curvilinear = NULL)
-
+emep_slice = read_emep(str_subset(dir_ls(obs_dir), 'fullrun'),
+                            emep_crs = TEST_CRS, var = mobs_polls[1], proxy = F) 
 sites_in = get_sites_in_domain(sites_geo, emep_slice)
 
 #log warning for sites outside the modelling domain
@@ -858,7 +854,7 @@ log_separator(separator = ' ')
 ```{r load_collated_mobs, eval = (EVALUATE_MOBS || PLOT_MOBS) && !COLLATE_MOBS}
 log_info('Loading collated mobs data')
 #choose the inner domain run unless that's NA
-obs_dir = ifelse(!is.na(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
+obs_dir = ifelse(!is.null(TEST_INNER_DIR), TEST_INNER_DIR, TEST_OUTER_DIR)
 
 #determine obs pollutants to be analysed
 mobs_polls = OBSERVED_POLLS_EMEP_LINK[OBSERVED_POLLS] %>% 
@@ -988,7 +984,7 @@ log_info('Mobs statistics SAVED')
 
 ```
 
-```{r mobs_report_stats_comp, eval = PLOT_MOBS && !is.na(REF_MOBS_DIR)}
+```{r mobs_report_stats_comp, eval = PLOT_MOBS && !is.null(REF_MOBS_DIR)}
 ref_sites_geo = read_rds(dir_ls(REF_MOBS_DIR, regexp = '(S|s)ites.*\\.rds'))
 ref_mobs_pths = dir_ls(REF_MOBS_DIR, regexp = '\\.rds') %>%
   str_subset('(S|s)ites', negate = T)
