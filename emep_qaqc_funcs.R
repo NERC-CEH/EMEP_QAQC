@@ -2878,15 +2878,15 @@ format_maps_page_title = function(outer_test_pth = NULL, outer_ref_pth = NULL,
       str_replace('_[^_]+$', '')
     
   } else {
-    test_title = compact(outer_test_pth, inner_test_pth) %>% 
-      str_replace('_[^_]+$', '') #strip everything after the last underscore from filename
-    ref_title = compact(outer_ref_pth, inner_ref_pth) %>% 
-      str_replace('_[^_]+$', '')
+    test_title = compact(list(outer_test_pth, inner_test_pth)) %>% 
+      map_chr(~str_replace(.x, '_[^_]+$', '')) #strip everything after the last underscore from filename
+    ref_title = compact(list(outer_ref_pth, inner_ref_pth)) %>% 
+      map_chr(~str_replace(.x, '_[^_]+$', ''))
     
   }
-  if (is.na(ref_title)) {
+  if (length(ref_title) == 0) {
     pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(test_title)), 50, whitespace_only = F), '\n')
-  } else if(is.na(test_title)) {
+  } else if(length(test_title) == 0) {
     pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(ref_title)), 50, whitespace_only = F), '\n')
   } else {
     pg_title = str_c(str_wrap(str_c(run_labels[1], ': ', path_file(test_title)), 50, whitespace_only = F),
