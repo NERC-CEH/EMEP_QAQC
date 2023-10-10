@@ -1101,6 +1101,7 @@ log_with_separator('PLOT_MOBS task', separator = '-')
 ```
 
 ```{r plot_annual_scatter_plots, eval = PLOT_MOBS && EVALUATE_MOBS, fig.width = 8.4}
+#this chunk plots annual means mobs scatter plots for sites with dc >= MOBS_THRESHOLD 
 scatter_plots0 = test_mobs_ameans %>% 
   group_by(var)
 

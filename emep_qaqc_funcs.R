@@ -530,9 +530,8 @@ calculate_emep_diff = function(emep_var,
   if (any(is.null(c(test_crs, ref_crs)))) stop('Both test_crs and ref_crs MUST be provided!')
   
   #determine what needs plotting and check if paths are valid
-  emep_fnames = c(outer_test_fname, outer_ref_fname, inner_test_fname, inner_ref_fname) %>% 
-    set_names()
-  if (!all(file_exists(na.omit(emep_fnames)))) stop ('Invalid file path(s)')
+  emep_fnames = list(outer_test_fname, outer_ref_fname, inner_test_fname, inner_ref_fname)
+
   
   emep_stars = pmap(list(emep_fname = emep_fnames, emep_crs = c(test_crs, ref_crs, test_crs, ref_crs)),
                    read_emep, var = emep_var, proxy = F, time_index = time_index)
