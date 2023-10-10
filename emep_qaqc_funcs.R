@@ -527,7 +527,7 @@ calculate_emep_diff = function(emep_var,
                                test_crs = NULL, ref_crs = NULL, time_index = NULL,
                                run_labels = c('test', 'ref')) {
   
-  if (any(is.na(c(test_crs, ref_crs)))) stop('Both test_crs and ref_crs MUST be provided!')
+  if (any(is.null(c(test_crs, ref_crs)))) stop('Both test_crs and ref_crs MUST be provided!')
   
   #determine what needs plotting and check if paths are valid
   emep_fnames = c(outer_test_fname, outer_ref_fname, inner_test_fname, inner_ref_fname) %>% 
