@@ -526,11 +526,11 @@ rm(dsc_plots, emep_budget2, export)
   
 ```
 
-``` {asis, echo = COMPARE_BUDGET_MSC && !is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = COMPARE_BUDGET_MSC && !is.null(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the area mask file **`r BUDGET_MASK_FNAME`** for the following EMEP variables:
 ```
 
-``` {asis, echo = COMPARE_BUDGET_MSC && is.na(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
+``` {asis, echo = COMPARE_BUDGET_MSC && is.null(BUDGET_MASK_FNAME) && !is.null(v_tbl2), eval = COMPARE_BUDGET_MSC}
 Budget or MSC have been calculated and compared with the reference run using the full domain of the **`r EMEP_BUDGET_FNAME[1]`** file for the following EMEP variables:
 ```
 
@@ -624,8 +624,8 @@ if (all(!map_lgl(list(TEST_INNER_DIR, REF_INNER_DIR, TEST_OUTER_DIR, REF_OUTER_D
   
   log_info('Comparison maps plotlist for {inner_domain} domain only created')
   
-  page_titles_i = format_maps_page_title(outer_test_pth = NA,
-                                     outer_ref_pth = NA,
+  page_titles_i = format_maps_page_title(outer_test_pth = NULL,
+                                     outer_ref_pth = NULL,
                                      inner_test_pth = select_file_from_dir(TEST_INNER_DIR, fname = inner_file_tag),
                                      inner_ref_pth = select_file_from_dir(REF_INNER_DIR, fname = inner_file_tag),
                                      run_labels = str_c(RUN_LABELS, ' run')) %>%
