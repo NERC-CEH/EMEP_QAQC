@@ -16,7 +16,8 @@ WRF_RUN_DESCRIPTOR = 'WRF4.2.2 UKSCAPE 2018'
 OBS_DIR = 'default' #default is the Data subdirectory in the QAQC_DIR but can be any previous qaqc run data - make sure both the domain and year are the same!!!
 REF_MOBS_DIR = NA
 
-PALETTE_DIR = 'NCL_colors' #where ncl color palettes are stored
+PALETTE_DIR = '/home/emep4uk/Tools/NCL/6.6.2/lib/ncarg/colormaps' #where ncl color palettes are stored
+                                                                  #see https://www.ncl.ucar.edu/Document/Graphics/color_table_gallery.shtml
 
 # Output directory ------------------------------------------------------------
 ### qaqc output directory is by default 'WRF_QAQC' directory created in the current working directory
