@@ -112,13 +112,13 @@ EMEP_domains = c(outer_domain, inner_domain)
 
 log_info('Test run directory: {test_run_info}')
 log_info('Reference run directory: {ref_run_info}')
-if (is.na(outer_domain)) {
+if (is.null(outer_domain)) {
   log_warn('Outer domain not submitted for this QAQC')
 } else {
   log_info('Outer domain: {outer_domain}')
 }
 
-if (is.na(inner_domain)) {
+if (is.null(inner_domain)) {
   log_warn('Inner domain not submitted for this QAQC')
 } else {
   log_info('Inner domain: {inner_domain}')
@@ -147,16 +147,16 @@ The report has been produced by **`r qaqc_user`**. All outputs have been saved i
 **Test Run Directory:** `r test_run_info`
 \
 **Reference Run Directory:** `r ref_run_info`
-``` {asis, echo = !is.na(outer_domain), eval = !is.na(outer_domain)}
+``` {asis, echo = !is.null(outer_domain), eval = !is.null(outer_domain)}
 **Outer Domain:** `r outer_domain`
 ```
-``` {asis, echo = is.na(outer_domain), eval = is.na(outer_domain)}
+``` {asis, echo = is.null(outer_domain), eval = is.null(outer_domain)}
 **Outer Domain:** Not submitted for this QA/QC
 ```
-``` {asis, echo = !is.na(inner_domain), eval = !is.na(inner_domain)}
+``` {asis, echo = !is.null(inner_domain), eval = !is.null(inner_domain)}
 **Inner Domain:** `r inner_domain`
 ```
-``` {asis, echo = is.na(inner_domain), eval = is.na(inner_domain)}
+``` {asis, echo = is.null(inner_domain), eval = is.null(inner_domain)}
 **Inner Domain:** Not submitted for this QA/QC
 ```
 
@@ -176,16 +176,16 @@ fsize_tables = map2(c(TEST_OUTER_DIR, TEST_INNER_DIR),
   .$result
 ```
 
-``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE, eval = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE}
+``` {asis, echo = all(!map_lgl(list(outer_domain, inner_domain), is_null)) && COMPARE_FILE_SIZE, eval = all(!map_lgl(list(outer_domain, inner_domain), is_null)) && COMPARE_FILE_SIZE}
 ## `r outer_domain` Domain
 ```
-``` {r, eval = !is.na(outer_domain) && COMPARE_FILE_SIZE, results = 'asis'}
+``` {r, eval = !is.null(outer_domain) && COMPARE_FILE_SIZE, results = 'asis'}
 fsize_tables[[1]]
 ```
-``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE, eval = all(!is.na(c(outer_domain, inner_domain))) && COMPARE_FILE_SIZE}
+``` {asis, echo = all(!map_lgl(list(outer_domain, inner_domain), is_null)) && COMPARE_FILE_SIZE, eval = all(!map_lgl(list(outer_domain, inner_domain), is_null)) && COMPARE_FILE_SIZE}
 ## `r inner_domain` Domain
 ```
-``` {r, eval = !is.na(inner_domain) && COMPARE_FILE_SIZE, results = 'asis'}
+``` {r, eval = !is.null(inner_domain) && COMPARE_FILE_SIZE, results = 'asis'}
 fsize_tables[[2]]
 ```
 
@@ -345,19 +345,19 @@ An emission inventory file not supplied. A comparison between model and inventor
 ``` {asis, echo = COMPARE_EMISSIONS && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) == 0, eval = COMPARE_EMISSIONS}
 A comparison between the supplied inventory file and the test run emissions is currently not possible. 
 ```
-``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
+``` {asis, echo = all(!map_lgl(list(outer_domain, inner_domain), is_null)), eval = COMPARE_EMISSIONS}
 ## `r outer_domain` Domain
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0 , eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.null(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0 , eval = COMPARE_EMISSIONS && !is.null(outer_domain) && is.null(emiss_exceedance_tbls[[1]] ) && !is.null(EMISSION_INVENTORY_PTH)}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.null(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 ```
 
-``` {r, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH)}
+``` {r, eval = COMPARE_EMISSIONS && !is.null(outer_domain) && !is.null(emiss_exceedance_tbls[[1]]) && !is.null(EMISSION_INVENTORY_PTH)}
 emiss_exceedance_tbls_fmted[[1]]
 log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')
 ```
@@ -365,45 +365,45 @@ log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRE
 ``` {asis, echo = COMPARE_EMISSIONS && length(MBS_list) == 0, eval = COMPARE_EMISSIONS}
 A comparison between test and reference run emissions for the supplied runs is currently not available. 
 ```
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.null(outer_domain) && is.null(MBS_exceedance_tbls[[1]] ) && length(MBS_list) != 0}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the reference run.
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.null(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
 ```
 
-``` {r, eval = COMPARE_EMISSIONS && !is.na(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
+``` {r, eval = COMPARE_EMISSIONS && !is.null(outer_domain) && !is.null(MBS_exceedance_tbls[[1]]) && length(MBS_list) != 0}
 MBS_exceedance_tbls_fmted[[1]]
 log_info('Test vs reference emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {outer_domain} domain printed in report')
 ```
 
-``` {asis, echo = all(!is.na(c(outer_domain, inner_domain))), eval = COMPARE_EMISSIONS}
+``` {asis, echo = all(!map_lgl(list(outer_domain, inner_domain), is_null)), eval = COMPARE_EMISSIONS}
 ## `r inner_domain` Domain
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH) && length(emiss_list) != 0, eval = COMPARE_EMISSIONS && !is.null(inner_domain) && is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the supplied emission inventory file.
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH), eval = COMPARE_EMISSIONS && !is.null(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the supplied emission inventory file:
 ```
 
-``` {r, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
+``` {r, eval = COMPARE_EMISSIONS && !is.null(inner_domain) && !is.null(emiss_exceedance_tbls[[2]]) && !is.null(EMISSION_INVENTORY_PTH)}
 emiss_exceedance_tbls_fmted[[2]]
 log_info('Model vs Inventory emission differences exceeding the {EMISS_DIFF_THRESHOLD}% threshold for {inner_domain} domain printed in report')
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.null(inner_domain) && is.null(MBS_exceedance_tbls[[2]] ) && length(MBS_list) != 0}
 All test run emissions are within `r EMISS_DIFF_THRESHOLD`% of those in the reference run.
 ```
 
-``` {asis, echo = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
+``` {asis, echo = COMPARE_EMISSIONS && !is.null(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0, eval = COMPARE_EMISSIONS && !is.null(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
 Emissions of the following species in the test run differ by more than `r EMISS_DIFF_THRESHOLD`% from those in the reference run:
 ```
 
-``` {r, eval = COMPARE_EMISSIONS && !is.na(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
+``` {r, eval = COMPARE_EMISSIONS && !is.null(inner_domain) && !is.null(MBS_exceedance_tbls[[2]]) && length(MBS_list) != 0}
 MBS_exceedance_tbls_fmted[[2]]
 log_info('Test vs reference emission differences exceeding the threshold for {inner_domain} domain printed in report')
 ```
