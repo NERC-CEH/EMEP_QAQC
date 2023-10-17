@@ -152,7 +152,7 @@ PPP = 4                        #plots per page for obs-mod - do NOT change (unle
 # output paths ------------------------------------------------------------
 
 ### please do not change any output paths unless you have a very good reason (there isn't one!)
-if (is.null(TEST_INNER_DIR) | QAQC_DIR != TEST_INNER_DIR) { 
+if (is.null(TEST_INNER_DIR) || QAQC_DIR != TEST_INNER_DIR) { 
   qaqc_pth_out = dir_create(path(QAQC_DIR))
 } else {
   qaqc_pth_out = dir_create(path(QAQC_DIR, 'QAQC'))
