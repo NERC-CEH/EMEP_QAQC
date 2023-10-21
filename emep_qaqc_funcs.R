@@ -2367,7 +2367,7 @@ mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
                              info_tbl[['year']]),
                            collapse = ' ') %>% 
     str_squish() %>% 
-    str_wrap(width = 50)
+    str_wrap(width = 80)
   
   page_hourly_title = map_chr(str_c(' ', month.name, ' '),
                               ~str_c(c('Hourly data at ',
@@ -2379,7 +2379,7 @@ mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
                                      .x,
                                      info_tbl[['year']]), collapse = ' ') %>% 
                                 str_squish()) %>% 
-    map_chr(str_wrap, width = 50)
+    map_chr(str_wrap, width = 80)
   
   #if run_title_info provided, add it to the page titles
   if (!is.na(run_title_info)) {
