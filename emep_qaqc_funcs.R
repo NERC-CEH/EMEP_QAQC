@@ -999,8 +999,8 @@ clean_noaa = function(noaa_dframe) {
   
   if ('precip_code' %in% names(noaa_dframe)) {
     noaa_dframe = noaa_dframe %>%
-      mutate(precip_raw = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3') & precip_code != '99', precip_raw, NA),
-             precip_code = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3') & precip_code != '99', precip_code, NA))
+      mutate(precip_raw = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3', '9') & precip_code != '99', precip_raw, NA),
+             precip_code = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3', '9') & precip_code != '99', precip_code, NA))
   }
   
   noaa_dframe = noaa_dframe %>% 
