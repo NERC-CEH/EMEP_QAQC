@@ -142,6 +142,11 @@ wrf_data_list = bind_rows(wrf_data_list) %>%
   future_map(calculate_wrf_precip) %>% 
   map(~mutate(.x, scenario = 'mod')) 
 
+###separate_precip WIP for precip maps
+iter_df_precip = expand_grid(met_var = WRF_VARS, wrf_file = wrf_files) %>% 
+  filter(met_var %in% c('RAINNC', 'RAINC'))
+###
+
 noaa_data_pths = dir_ls(OBS_DIR) %>% 
   str_subset('obs\\.rds') %>% 
   str_subset('mod_obs', negate = T)
@@ -153,7 +158,9 @@ noaa_list = noaa_data_pths %>%
 mobs_list = reduce(c(wrf_data_list, noaa_list), bind_rows) %>% 
   group_split(code) %>%
   future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var, scenario), values_from = value)) %>% 
-  map(~mutate(.x, precip_mod = if_else(!is.na(precip_obs), precip_mod, NA))) %>% 
+  #create precip00 var which has data only when obs are available for direct comparison
+  map(~mutate(.x, precip00_mod = precip_mod,
+              precip00_mod = if_else(!is.na(precip_obs), precip00_mod, NA))) %>%
   map(~select(.x, -precip_code_obs)) %>% 
   future_map(~pivot_longer(.x, cols = c(-date, -code), names_to = c('var', 'scenario'), names_sep = '_', values_to = 'value')) %>% 
   future_map(~pivot_wider(.x, id_cols = c(date, code, var), names_from = scenario, values_from = value), .options = furrr_options(seed = T))

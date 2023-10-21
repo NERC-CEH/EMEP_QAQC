@@ -1770,16 +1770,28 @@ plot_mobs_tseries = function(dframe) {
     distinct(var) %>% 
     pull()
   
+  if( 'precip00' %in% plot_vars) {
+    plot_vars = str_subset(plot_vars, 'precip00', negate = T)
+  }
+  
   out_list = vector('list', length(plot_vars))
   for (i in seq_along(plot_vars)) {
     plot_var = plot_vars[i]
-    tbl_sub = dframe %>% 
-      filter(var == plot_var)
+    
+    if (plot_var == 'precip') {
+      tbl_sub = dframe %>% 
+        filter(str_detect(var, 'precip')) %>% 
+        pivot_wider
+    } else {
+      tbl_sub = dframe %>% 
+        filter(var == plot_var) 
+    }
     
     dc_obs = sum(!is.na(tbl_sub$obs)) #calculate observation data capture
     #determine time res and time span of data to select appropriate datetime breaks and labels
     dates = tbl_sub %>% 
-      pull(date)
+      distinct(date) %>% 
+      pull()
     data_res = dates %>%
       int_diff() %>% 
       int_length() %>% 
@@ -1815,7 +1827,7 @@ plot_mobs_tseries = function(dframe) {
     tbl_sub2 = tbl_sub %>% 
       mutate(ymin = ymin,
              var = as.character(var)) %>% 
-      pivot_longer(obs:mod, names_to = 'scenario', values_to = 'conc')
+      pivot_longer(c(mod, obs), names_to = 'scenario', values_to = 'conc')
     
     #for correct labelling of the plot strips (won't accept myquicktext) - accepts named vector
     label_vector = OBS_VAR_PARAMS_LIST[[plot_var]][['lab_unit']] %>% 
@@ -1826,19 +1838,30 @@ plot_mobs_tseries = function(dframe) {
       p = ggplot()
       
     } else {
+      obs_tbl = tbl_sub2 %>% 
+        filter(scenario == 'obs') %>% 
+        distinct(date, .keep_all = T) #precip will have two vars so use just one
       p = ggplot() +
-        geom_ribbon(data = filter(tbl_sub2, scenario == 'obs'),
+        geom_ribbon(data = obs_tbl,
                     aes(date, ymin = ymin, ymax = conc, fill = scenario), color = NA, alpha = 0.9) +
         scale_fill_manual(values = c(obs = unname(OBS_VAR_PARAMS_LIST[[plot_var]][['var_fill']])),
                           labels = c(obs = 'Observed'), guide = guide_legend(override.aes = list(size = 3)))
     }
+    mod_tbl = tbl_sub2 %>% 
+      filter(scenario == 'mod') %>% 
+      mutate(var2 = var,
+             var = plot_var)
+    linetype_vals = c('solid', 'dashed') %>%
+      set_names(nm = c(plot_var, paste0(plot_var, '0')))
     
     p = p +
-      geom_line(data = filter(tbl_sub2, scenario == 'mod'),
-                aes(date, conc, color = scenario), linewidth = 0.3) +
+      geom_line(data = mod_tbl,
+                aes(date, conc, color = scenario, linetype = var2), linewidth = 0.3) +
       scale_x_datetime(date_breaks = date_breaks, date_labels = date_labels, expand = expansion(c(0,0))) +
       scale_color_manual(values = c(mod = unname(OBS_VAR_PARAMS_LIST[[plot_var]][['var_col']])),
                          labels = c(mod = 'Modelled'), guide = guide_legend(override.aes = list(size = .75))) +
+      scale_linetype_manual(values = linetype_vals) +
+      guides(linetype = 'none') +
       labs(x = NULL,
            y = NULL) +
       facet_wrap(~var, strip.position = 'left',
@@ -1879,10 +1902,17 @@ plot_mobs_tseries = function(dframe) {
     }
     
     if (dc_obs == 0) {
-      p = p +
-        labs(caption = '* Insufficient or no observations during the period shown.') +
-        theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
-              plot.caption = element_text(size = 8))
+      if (plot_var == 'precip') {
+        p = p +
+          labs(caption = '* Insufficient or no observations during the period shown. Data shown are a cummulative sum. ') +
+          theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
+                plot.caption = element_text(size = 8))
+      } else {
+        p = p +
+          labs(caption = '* Insufficient or no observations during the period shown.') +
+          theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
+                plot.caption = element_text(size = 8))
+      }
       
       modelled_min = tbl_sub2 %>%
         filter(scenario == 'mod') %>%
@@ -1913,20 +1943,21 @@ plot_mobs_tseries = function(dframe) {
         scale_y_continuous(breaks = y_params[['breaks']],
                            labels = y_params[['labels']],
                            expand = y_params[['expand']],
-                           limits = y_params[['limits']]) +
+                           limits = y_params[['limits']])
+      
+      if(plot_var != 'precip') {
         #plot a transparent caption so that the plots are the same size with or without caption text
-        labs(caption = 'Insufficient or no observations during the period shown.') +
-        theme(plot.caption = element_text(color = 'transparent',
-                                          size = 8))
-    }
-    
-    if (plot_var %in% c('precip', 'precip6', 'precip12')) {
-      precip_label = textGrob(label = 'Data shown are a cummulative sum.',
-                              x = 0.99, y = 0.02,
-                              just = c('right', 'bottom'),
-                              gp = gpar(fontsize = 8))
-      p = p +
-        annotation_custom(precip_label, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)
+        p = p +
+          labs(caption = 'Insufficient or no observations during the period shown.') +
+          theme(plot.caption = element_text(color = 'transparent',
+                                            size = 8))
+      } else {
+        #explain dashed line
+        p = p +
+          labs(caption = '* Dashed line shows modelled data when observations exist. Data shown are a cummulative sum. ') +
+          theme(plot.caption = element_text(size = 8))
+      } 
+
     }
     
     out_list[[i]] = p
