@@ -1780,8 +1780,7 @@ plot_mobs_tseries = function(dframe) {
     
     if (plot_var == 'precip') {
       tbl_sub = dframe %>% 
-        filter(str_detect(var, 'precip')) %>% 
-        pivot_wider
+        filter(str_detect(var, 'precip'))
     } else {
       tbl_sub = dframe %>% 
         filter(var == plot_var) 
