@@ -963,8 +963,9 @@ my_importNOAA = function(code, year, pth = NULL) {
     
     met_data <- mutate(met_data,
                        precip_raw = as.numeric(precip_raw),
-                       precip_raw = ifelse(precip_raw == 9999, NA, precip_raw),
-                       precip_raw = precip_raw / 10
+                       precip_raw = if_else(precip_raw == 9999, NA, precip_raw),
+                       precip_raw = precip_raw / 10,
+                       precip_code = if_else(precip_code =='99', NA, precip_code) 
     )
   }
 
