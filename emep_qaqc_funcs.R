@@ -1213,6 +1213,276 @@ create_blank_plot = function() {
   blank_plot
 }
 
+plot_comp_maps2_WIP = function(diff_list, var_params_list, pal_dir = PALETTE_DIR,
+                           var_pal = 'WhiteBlueGreenYellowRed.rgb',
+                           adiff_pal = 'NCV_blu_red.rgb',
+                           rdiff_pal = 'NCV_blu_red.rgb',
+                           autoscale = F,
+                           autobreak_type = c('linear', 'percentile'),
+                           n_bins = 10,
+                           var_breaks = NULL,
+                           adiff_breaks = NULL,
+                           rdiff_breaks = NULL,
+                           gg_basemap = NULL,
+                           pretty_lab = F) {
+  
+  var = str_replace(names(diff_list)[1], '_[^_]+$', '')
+  
+  if (pretty_lab == T) {
+    fill_labs = c(myquickText(paste0(var_params_list[[var]][['pretty_lab']], ' (', var_params_list[[var]][['units']], ')')),
+                  myquickText(paste0(var_params_list[[var]][['pretty_lab']], ' (', var_params_list[[var]][['units']], ')')),
+                  myquickText(paste0('Delta ', var_params_list[[var]][['pretty_lab']], ' (', var_params_list[[var]][['units']], ')')),
+                  myquickText(paste0('Delta ', var_params_list[[var]][['pretty_lab']], ' (%)')))
+    top_title = myquickText(var_params_list[[var]][['pretty_lab']])
+  } else {
+    fill_labs = c(paste0(var, ' (', var_params_list[[var]][['units']], ')'),
+                  paste0(var, ' (', var_params_list[[var]][['units']], ')'),
+                  paste0('Delta ', var, ' (', var_params_list[[var]][['units']], ')'),
+                  paste0('Delta ', var, ' (%)'))
+    top_title = var
+  }
+  
+  if (is.null(gg_basemap)) {
+    #download country borders for plotting
+    boundaries0 = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% 
+      st_cast("MULTILINESTRING")
+    boundaries_test = boundaries0 %>%  
+      st_transform(st_crs(diff_list[[1]][[1]]))
+    boundaries_ref = boundaries0%>%  
+      st_transform(st_crs(diff_list[[1]][[2]]))
+  } else {
+    # needs finishing
+  }
+  
+  p1_list = map(diff_list, 1)
+  p2_list = map(diff_list, 2)
+  p3_list = map(diff_list, 3) %>% 
+    compact() #make sure no nulls present (in case diff couldn't be calculated)
+  p4_list = map(diff_list, 4) %>% 
+    compact() # as above
+  
+  var_pal = read_color(path(pal_dir, var_pal))
+  adiff_pal = read_color(path(pal_dir, adiff_pal))
+  rdiff_pal = read_color(path(pal_dir, rdiff_pal))
+  
+  extract_extreme = function(stars_list, extreme) {
+    if (extreme == 'max') {
+      out = stars_list %>% 
+        map_dbl(~map_dbl(.x, ~max(.x, na.rm = T), .y = .x)) %>% 
+        max()
+    } else if (extreme == 'min') {
+      out = stars_list %>% 
+        map_dbl(~map_dbl(.x, ~min(.x, na.rm = T), .y = .x)) %>% 
+        min()
+    }
+    out
+  }
+  
+  #calculate color breaks
+  #first limits
+  max_var = extract_extreme(c(p1_list, p2_list), 'max')
+  
+  max_vals = c(extract_extreme(c(p1_list, p2_list), 'max'),
+               extract_extreme(p3_list, 'max'),
+               extract_extreme(p4_list, 'max'))
+  
+  min_vals = c(extract_extreme(c(p1_list, p2_list), 'min'),
+               extract_extreme(p3_list, 'min'),
+               extract_extreme(p4_list, 'min'))
+
+  if (autoscale == T) {
+    if (autobreak_type[1] == 'percentile') {
+      var_breaks = last(p1_list) %>% 
+        pull() %>% 
+        as.numeric() %>% 
+        quantile(probs = seq(0, 1, 1/n_bins))
+    } else {
+      var_breaks = seq(min_vals[1], max_vals[1], length.out = n_bins + 1)
+    }
+  } else {
+    var_breaks = var_params_list[[var]][['map_levs']]
+  }
+  
+  #make sure all var values are within the colorscale range
+  if (min_vals[1] < var_breaks[1]) {
+    var_breaks[1] = min_vals[1]
+  }
+  
+  if (max_vals[1] > last(var_breaks)) {
+    var_breaks[length(var_breaks)] = max_vals[1]
+  }
+
+  n_round = min(var_breaks - lag(var_breaks), na.rm = T) %>% 
+    log10() %>% 
+    floor()
+  n_round = ifelse(n_round <= 0, n_round * -1 + 1, n_round -1)
+
+  var_breaks[1] = floor_dec(var_breaks[1], n_round)
+  var_breaks[length(var_breaks)] = ceiling_dec(last(var_breaks), n_round)
+  var_breaks = round(var_breaks, digits = n_round)
+  
+  
+  #diff breaks WIP
+  adiff_abs_max = max(abs(max_vals[2]), abs(min_vals[2]))
+  
+  adiff_data = p3_list %>%
+    flatten() %>%
+    map(as.numeric) %>%
+    flatten_dbl()
+  adiff_pretty = adiff_data %>% 
+    pretty()
+  
+  if (0 %in% adiff_pretty) {
+    adiff_step = adiff_pretty - lag(adiff_pretty)
+    min_adiff_step = adiff_step %>% 
+      na.omit() %>% 
+      unique()
+  }
+  
+  rdiff_range = max_vals[3] - min_vals[3]
+  
+  diff_breaks = c(-1e6, var_params_list[[var]][['map_difflevs']], 1e6)
+  diff_labels = sprintf(var_params_list[[var]][['map_diffprecision']], diff_breaks)
+  diff_labels[seq(1:length(diff_labels)) %% 2 == 1] = ''
+  diff_labels = diff_labels[c(-1, -length(diff_breaks))]
+  #labels for relative difference - hardcoded to -100, -80,...,0,...,80, 100 percent
+  diff_rel_labels = if_else(seq_along(c(-1e6, seq(-100, 100, 10), 1e6)) %% 2 == 1,
+                            '', as.character(c(-1e6, seq(-100, 100, 10), 1e6))) %>% 
+    .[c(-1, -length(c(-1e6, seq(-100, 100, 10), 1e6)))]
+  
+  ncl_rainbow = read_color(path(ncl_palette_dir, 'WhiteBlueGreenYellowRed.rgb')) %>%
+    get_color(n = length(map_breaks) -1)
+  
+  ncl_rwb = read_color(path(ncl_palette_dir,'NCV_blu_red.rgb')) %>% 
+    get_color(n = length(diff_breaks) - 1)
+  
+  p1 = ggplot()
+  for (i in seq_along(p1_list)) {
+    p1 = p1 +
+      geom_stars(data = cut(p1_list[[i]], breaks = var_breaks, include.lowest = T))
+  }
+  p1 = p1 + 
+    geom_sf(data = st_crop(boundaries_test, p1_list[[1]]) , color = "black", fill = NA, size = 0.07) +
+    scale_fill_manual(values = get_color(var_pal, n = length(var_breaks - 1)), drop = F, 
+                      labels = scales::label_number(scale_cut = c(0, 'k' = 1e3, 'M' = 1e6, 'G' = 1e9, 'T' = 1e12)),
+                      guide = guide_coloursteps(show.limits = T,
+                                                title.position = 'top',
+                                                title.hjust = 0.5, frame.colour = 'black',
+                                                frame.linewidth = 0.1,
+                                                barwidth = unit(6.7, 'inches'))) +
+    labs(title = names(diff_list[[1]][[1]]),
+         fill = fill_labs[1])
+  
+  p1 = theme_emep_diffmap(p1)
+  
+  p2 = ggplot()
+  for (i in seq_along(p2_list)) {
+    p2 = p2 +
+      geom_stars(data = cut(p2_list[[i]], breaks = var_breaks, include.lowest = T))
+  }
+  p2 = p2 + 
+    geom_sf(data = st_crop(boundaries_ref, p2_list[[1]]) , color = "black", fill = NA, size = 0.07) +
+    scale_fill_manual(values = get_color(var_pal, n = length(var_breaks - 1)), drop = F, 
+                      labels = scales::label_number(scale_cut = c(0, 'k' = 1e3, 'M' = 1e6, 'G' = 1e9, 'T' = 1e12)),
+                      guide = guide_coloursteps(show.limits = T,
+                                                title.position = 'top',
+                                                title.hjust = 0.5, frame.colour = 'black',
+                                                frame.linewidth = 0.1,
+                                                barwidth = unit(6.7, 'inches'))) +
+    labs(title = names(diff_list[[1]][[2]]),
+         fill = fill_labs[2])
+  
+  p2 = theme_emep_diffmap(p2)
+  
+  p3_list = map(diff_list, 3) %>% 
+    compact()
+  if (length(p3_list) > 0) {
+    p3 = ggplot()
+    for (i in seq_along(p3_list)) {
+      p3 = p3 +
+        geom_stars(data = cut(p3_list[[i]], breaks = diff_breaks, include.lowest = T))
+    }
+    p3 = p3 +
+      geom_sf(data = st_crop(boundaries_test, p3_list[[1]]), color = "black", fill = NA, size = 0.07) + 
+      scale_fill_manual(values = ncl_rwb, drop = F, 
+                        labels = diff_labels,
+                        guide = guide_coloursteps(title.position = 'top',
+                                                  title.hjust = 0.5, frame.colour = 'black',
+                                                  frame.linewidth = 0.1,
+                                                  barwidth = unit(3.2, 'inches'))) +
+      labs(title = paste0(names(diff_list[[1]][[1]]), ' - ', names(diff_list[[1]][[2]]), ' (abs)'),
+           fill = fill_labs[3])
+    
+    p3 = theme_emep_diffmap(p3)
+    
+    #check if all abs_diff are NA (= test and ref values are identical)
+    identical_data = map(p3_list, as_tibble) %>%
+      map(drop_na) %>%
+      map_dbl(nrow)
+    
+    if (all(identical_data == 0)) {
+      p3 = p3 +
+        annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
+        annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+        theme(legend.position = 'none')
+    }
+    
+  } else {
+    p3 = create_blank_plot() +
+      annotation_custom(grid::roundrectGrob(width = 0.9, height = 0.08)) +
+      annotation_custom(grid::textGrob('Absolute difference not calculable'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+      theme(legend.position = 'none')
+  }
+  
+  p4_list = map(diff_list, 4) %>% 
+    compact()
+  if (length(p4_list) > 0) {
+    p4 = ggplot()
+    for (i in seq_along(p4_list)) {
+      p4 = p4 +
+        geom_stars(data = cut(p4_list[[i]], breaks = c(-1e6, seq(-100, 100, 10), 1e6), include.lowest = T))
+    }
+    p4 = p4 +
+      geom_sf(data = st_crop(boundaries_test, p4_list[[1]]), color = "black", fill = NA, size = 0.07) + 
+      scale_fill_manual(values = ncl_rwb, drop = F, 
+                        labels = diff_rel_labels,
+                        guide = guide_coloursteps(title.position = 'top',
+                                                  title.hjust = 0.5, frame.colour = 'black',
+                                                  frame.linewidth = 0.1,
+                                                  barwidth = unit(3.2, 'inches'))) +
+      labs(title = paste0(names(diff_list[[1]][[1]]), ' - ', names(diff_list[[1]][[2]]), ' (rel)'),
+           fill = fill_labs[4])
+    
+    p4 = theme_emep_diffmap(p4)
+    
+    #check if all abs_diff are NA (= test and ref values are identical)
+    identical_data = map(p4_list, as_tibble) %>%
+      map(drop_na) %>%
+      map_dbl(nrow)
+    
+    if (all(identical_data == 0)) {
+      p4 = p4 +
+        annotation_custom(grid::roundrectGrob(width = 0.5, height = 0.08)) +
+        annotation_custom(grid::textGrob('Data are identical'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+        theme(legend.position = 'none')
+    }
+  } else {
+    p4 = create_blank_plot() +
+      annotation_custom(grid::roundrectGrob(width = 0.9, height = 0.08)) +
+      annotation_custom(grid::textGrob('Relative difference not calculable'), xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf) +
+      theme(legend.position = 'none')
+  }
+  
+  pp = ggarrange(ggarrange(p1, p2, ncol = 2,
+                           common.legend = T, legend = 'bottom'),
+                 ggarrange(p3, p4, ncol = 2, align = 'h'),
+                 nrow = 2, align = c('hv')) %>% 
+    annotate_figure(top = text_grob(top_title, size = 20, color = '#473C8B'))
+  
+  pp
+
+}
+
 plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) {
   
   var = str_replace(names(diff_list)[1], '_[^_]+$', '')
@@ -1610,7 +1880,7 @@ plot_mobs_tseries = function(dframe) {
     
     if (dc_obs == 0) {
       p = p +
-        labs(caption = '* No observations during the period shown.') +
+        labs(caption = '* Insufficient or no observations during the period shown.') +
         theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
               plot.caption = element_text(size = 8))
       
@@ -1645,7 +1915,7 @@ plot_mobs_tseries = function(dframe) {
                            expand = y_params[['expand']],
                            limits = y_params[['limits']]) +
         #plot a transparent caption so that the plots are the same size with or without caption text
-        labs(caption = 'No observations during the period shown.') +
+        labs(caption = 'Insufficient or no observations during the period shown.') +
         theme(plot.caption = element_text(color = 'transparent',
                                           size = 8))
     }
@@ -1741,7 +2011,7 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
   
   if (dc_obs == 0) {
     p = p +
-      labs(caption = '* No observations during the period shown.') +
+      labs(caption = '* Insufficient or no observations during the period shown.') +
       theme(legend.position = c(0.4, 0.9), #the horizontal positions needs tweaking
             plot.caption = element_text(size = 8))
     
@@ -1765,7 +2035,7 @@ plot_time_series2 = function(dframe, time_res = 'day', month = NA, dc_threshold 
     p = p +
       scale_y_continuous(labels = function(x) {str_pad(x, width = 4, side = 'left', pad = ' ')},
                          expand = expansion(mult = c(0, 0.15), add = c(0, 0))) +
-      labs(caption = 'No observations during the period shown.') +
+      labs(caption = 'Insufficient or no observations during the period shown.') +
       theme(plot.caption = element_text(color = 'transparent',
                                         size = 8))
   }
@@ -1847,6 +2117,73 @@ plot_mobs_sites_map2 = function(sites_df, basemap = c('world_topo', 'satellite',
 
 plot_mobs_stats_map = function(sites_df, mobs_stat = 'MB', basemap = c('world_topo', 'satellite', 'terrain'),
                                 group_column = NULL, legend_title = 'Legend') {
+  
+  #create leaflet popups with appropriate capitalisation of letters - it's convoluted but works
+  stat_vars = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r', 'p', 'P')
+  info_vars0 = c('code', 'station', 'site', group_column, 'network', 'elev(m)', 'year') 
+  info_vars = info_vars0 %>% 
+    str_to_sentence() %>% 
+    c(stat_vars) %>% 
+    set_names(nm = c(info_vars0, stat_vars))
+  info_vars = base::intersect(names(info_vars), names(sites_df)) %>% 
+    info_vars[.]
+  
+  content = map2(info_vars, names(info_vars), ~str_c('<b>', .x, ':</b> ', sites_df[[.y]])) %>% 
+    transpose() %>% 
+    stringi::stri_join_list(sep = '<br/>')
+  
+  m = leaflet()
+  
+  #select tile type
+  if (basemap[1] == 'satellite') {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldImagery)
+  } else if (basemap[1] == 'terrain') {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldTerrain)
+  } else {
+    m = m %>% 
+      addProviderTiles(providers$Esri.WorldTopoMap)
+  }
+  
+  #get breaks, colors and limits for plotting with the help of ggplot :)
+  p = ggplot(sites_df) +
+    geom_point(aes(longitude, latitude, color = .data[[mobs_stat]]))
+  if (mobs_stat %in% c('MB', 'NMB', 'r')) {
+    p = p +
+      scale_color_steps2(low = '#053061', high = '#67001f', nice.breaks = T)
+  } else {
+    p = p +
+      scale_color_steps(low = '#fff7ec', high = '#7f0000')
+  }
+  
+  p_build = ggplot_build(p)
+  p_scale = p_build$plot$scales$get_scales("colour")
+  p_breaks = p_scale$get_breaks()
+  p_colors = p_scale$palette.cache
+  p_limits = p_scale$limits
+  
+  p_breaks = c(p_limits[1], p_breaks, p_limits[2])
+  p_labels = str_c(na.omit(lag(p_breaks)), na.omit(lead(p_breaks)), sep = ' - ')
+  p_breaks[1] = p_breaks[1] - abs(p_breaks[1]*0.001)
+  p_breaks[length(p_breaks)] = p_breaks[length(p_breaks)] * 1.001
+  
+  sites_df = sites_df %>%
+    drop_na({{mobs_stat}}) %>% 
+    mutate(stat_cut = cut(.data[[mobs_stat]], right= F,  breaks = p_breaks, labels = p_labels, include.lowest = T))
+  
+  pal = colorFactor(palette = rev(p_colors), domain = rev(p_labels), ordered = T)
+  
+  m = m %>% 
+    addCircleMarkers(data = sites_df, fillColor = ~pal(stat_cut), fillOpacity = 1, opacity = 1,
+                     stroke = T, color = 'black', radius = 5, weight = 0.1, popup = content) %>%
+    addLegend('topright', pal = pal, values = sites_df$stat_cut, opacity = 1, title = legend_title)
+  m
+}
+
+plot_mobs_stats_map2_WIP = function(sites_df, mobs_stat = 'MB', basemap = c('world_topo', 'satellite', 'terrain'),
+                               group_column = NULL, legend_title = 'Legend') {
+  #WIP for rain
   
   #create leaflet popups with appropriate capitalisation of letters - it's convoluted but works
   stat_vars = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r', 'p', 'P')
@@ -2671,6 +3008,47 @@ read_color <- function(file) {
   # colors
 }
 
+show_cols <- function(colors_list, margin = 8, fontsize = 1, family = NULL) {
+  if (!is.list(colors_list)) colors_list = list(colors_list)
+  names = names(colors_list)
+  n <- length(colors_list)
+  if (is.null(names)) {
+    names = if (n == 1) {
+      margin = 3
+      ""
+    } else seq_len(n)
+  }
+  
+  # par(mfrow = c(n, 1), mar = rep(0.25, 4))
+  height <- 0.05
+  old <- par(mfrow = c(n, 1), mar = c(height, 0.25, height, margin), mgp = c(0, 0, 0))
+  on.exit(par(old))
+  
+  suppressWarnings({
+    for(i in seq_along(colors_list)) {
+      color = colors_list[[i]]
+      name  = names[i]
+      
+      ncol <- length(color)
+      barplot(rep(1, ncol),
+              yaxt = "n",
+              space = c(0, 0), border = NA,
+              col = color,
+              xaxs = "i"
+              # xlim = c(2, ncol)
+              # , ylab = name
+      )
+      if (n > 10) abline(v = ncol * .05, col = "white", lwd = 0.7)
+      # , family = "Times"
+      title = sprintf(" %s (n = %s)", paste0(rep(" ", 0), name), ncol)
+      mtext(title, 4, las = 1, cex = fontsize, adj = 0, family = family) # , family = "Arial"
+      # text(-4, 0.5, name, adj = c(0, 0.5))
+      # sprintf("\n\n%s", name)
+    }
+  })
+  invisible()
+}
+
 #from rcolors package
 get_color <- function(col, n = NULL, show = FALSE) {
   cols = if (length(col) > 1) col else rcolors::rcolors[[col]]
@@ -3019,3 +3397,7 @@ decimal_counter <- function(x) {
   x
   
 }
+
+#helpers to floor and ceil numbers to a given decimal place
+floor_dec <- function(x, level=1) round(x - 5*10^(-level-1), level)
+ceiling_dec <- function(x, level=1) round(x + 5*10^(-level-1), level)
