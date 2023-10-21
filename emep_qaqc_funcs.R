@@ -2263,6 +2263,14 @@ mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
     select(-any_of(c('data', 'month'))) %>% 
     distinct()
   
+  if ('geometry' %in% names(info_tbl)) {
+    info_tbl = info_tbl %>% 
+      st_as_sf() %>% 
+      mutate(longitude = str_c('lon: ', round(st_coordinates(.)[ , 1], 4)),
+             latitude = str_c('lat: ', round(st_coordinates(.)[ , 2], 4))) %>% 
+      st_drop_geometry()
+  }
+  
   mobs_year = mobs_tbl %>% 
     unnest(cols = data) %>% 
     ungroup() %>% 
