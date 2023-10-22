@@ -223,7 +223,7 @@ mobs_list = discard_at(mobs_list, dodgy_sites)
 
 
 mobs_list2_K = mobs_list %>%
-  future_map(~filter(.x, year(date) == min(year(date)), var != 'precip')) %>% #use just subprecip data ()
+  future_map(~filter(.x, year(date) == min(year(date)))) %>%
   future_map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 
   future_map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs)))
 
@@ -233,8 +233,7 @@ test_mobs_acc_precip = mobs_list2_K %>%
   future_map(format_mobs_to_plot) %>% 
   future_map(~filter(.x, month == -1)) %>% 
   future_map(~unnest(.x, cols = c(data))) %>% 
-  future_map(~filter(.x, str_detect(var, 'precip'), date == max(date))) %>% 
-  future_map(~mutate(.x, var = 'precip')) %>% 
+  future_map(~filter(.x, var == 'subprecip', date == max(date))) %>% 
   future_map(ungroup) %>% 
   future_map_dfr(~select(.x, -month))
 
@@ -273,10 +272,9 @@ ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(see
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 #for modstats convert degC to K and drop precip and wd
 ref_mobs_list2_K = ref_mobs_list %>%
-  map(~filter(.x, year(date) == min(year(date)), var != 'precip')) %>% 
+  map(~filter(.x, year(date) == min(year(date)))) %>% 
   map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 
-  map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs))) %>% 
-  map(~filter(.x, !str_detect(var, 'precip|wd')))
+  map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs)))
 
 #extract the accummulated precip value using the last day data
 #this uses the format_mobs_to_plot fun and is pretty convoluted but it works
@@ -284,8 +282,7 @@ ref_mobs_acc_precip = ref_mobs_list2_K %>%
   future_map(format_mobs_to_plot) %>% 
   future_map(~filter(.x, month == -1)) %>% 
   future_map(~unnest(.x, cols = c(data))) %>% 
-  future_map(~filter(.x, str_detect(var, 'precip'), date == max(date))) %>% 
-  future_map(~mutate(.x, var = 'precip')) %>% 
+  future_map(~filter(.x, var == 'subprecip', date == max(date))) %>%
   future_map(ungroup) %>% 
   future_map_dfr(~select(.x, -month))
 
