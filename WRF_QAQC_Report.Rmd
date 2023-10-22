@@ -158,9 +158,10 @@ noaa_list = noaa_data_pths %>%
 mobs_list = reduce(c(wrf_data_list, noaa_list), bind_rows) %>% 
   group_split(code) %>%
   future_map(~pivot_wider(.x, id_cols = c(date, code), names_from = c(var, scenario), values_from = value)) %>% 
-  #create precip00 var which has data only when obs are available for direct comparison
-  map(~mutate(.x, precip00_mod = precip_mod,
-              precip00_mod = if_else(!is.na(precip_obs), precip00_mod, NA))) %>%
+  #create precip_sub var which has data only when obs are available for direct comparison
+  map(~mutate(.x, subprecip_mod = precip_mod,
+              subprecip_obs = precip_obs,
+              subprecip_mod = if_else(!is.na(precip_obs), subprecip_mod, NA))) %>%
   map(~select(.x, -precip_code_obs)) %>% 
   future_map(~pivot_longer(.x, cols = c(-date, -code), names_to = c('var', 'scenario'), names_sep = '_', values_to = 'value')) %>% 
   future_map(~pivot_wider(.x, id_cols = c(date, code, var), names_from = scenario, values_from = value), .options = furrr_options(seed = T))
@@ -222,7 +223,7 @@ mobs_list = discard_at(mobs_list, dodgy_sites)
 
 
 mobs_list2_K = mobs_list %>%
-  future_map(~filter(.x, year(date) == min(year(date)))) %>% 
+  future_map(~filter(.x, year(date) == min(year(date)), var != 'precip')) %>% #use just subprecip data ()
   future_map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 
   future_map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs)))
 
@@ -272,13 +273,26 @@ ref_mobs_list = future_map(ref_mobs_pths, read_rds, .options = furrr_options(see
   future_map(~mutate(.x, code = if_else(is.na(code), na.omit(unique(.$code)), code)), .options = furrr_options(seed = T))
 #for modstats convert degC to K and drop precip and wd
 ref_mobs_list2_K = ref_mobs_list %>%
-  map(~filter(.x, year(date) == min(year(date)))) %>% 
+  map(~filter(.x, year(date) == min(year(date)), var != 'precip')) %>% 
   map(~mutate(.x, mod = if_else(var %in% c('T2', 'td2'), mod + 273.15, mod))) %>% 
   map(~mutate(.x, obs = if_else(var %in% c('T2', 'td2'), obs + 273.15, obs))) %>% 
   map(~filter(.x, !str_detect(var, 'precip|wd')))
 
-ref_mobs_ameans = future_map_dfr(ref_mobs_list2_K, summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
-                                 .options = furrr_options(seed = T))
+#extract the accummulated precip value using the last day data
+#this uses the format_mobs_to_plot fun and is pretty convoluted but it works
+ref_mobs_acc_precip = ref_mobs_list2_K %>% 
+  future_map(format_mobs_to_plot) %>% 
+  future_map(~filter(.x, month == -1)) %>% 
+  future_map(~unnest(.x, cols = c(data))) %>% 
+  future_map(~filter(.x, str_detect(var, 'precip'), date == max(date))) %>% 
+  future_map(~mutate(.x, var = 'precip')) %>% 
+  future_map(ungroup) %>% 
+  future_map_dfr(~select(.x, -month))
+
+ref_mobs_ameans =  future_map(ref_mobs_list2_K, ~filter(.x, !str_detect(var, 'precip|wd'))) %>% 
+  future_map_dfr(summarise_mobs, avg_time = 'year', data_thresh = MOBS_THRESHOLD,
+                 .options = furrr_options(seed = T)) %>% 
+  bind_rows(ref_mobs_acc_precip)
 
 test_mobs_ameans2 = test_mobs_ameans %>% 
   filter(!is.na(obs)) %>% 
@@ -458,7 +472,7 @@ mobs_plotlist = mobs_list %>%
 
 mobs_plotlist %>% 
   future_walk(mobs_tseries_to_pdf, out_dir = dir_create(path(plots_pth_out, 'Individual_sites')),
-              run_title_info = WRF_RUN_DESCRIPTOR, ppp = PPP, plot_all_vars = T)
+              run_title_info = WRF_RUN_DESCRIPTOR, ppp = PPP, plot_all_vars = T, .options = furrr_options(seed = T))
 
 #add station codes to the list items so that stations for the report can be selected from mobs_list
 names(mobs_plotlist) = mobs_plotlist %>% 

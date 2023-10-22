@@ -1771,8 +1771,8 @@ plot_mobs_tseries = function(dframe) {
     distinct(var) %>% 
     pull()
   
-  if( 'precip00' %in% plot_vars) {
-    plot_vars = str_subset(plot_vars, 'precip00', negate = T)
+  if( 'subprecip' %in% plot_vars) {
+    plot_vars = str_subset(plot_vars, 'subprecip', negate = T)
   }
   
   out_list = vector('list', length(plot_vars))
