@@ -1144,38 +1144,30 @@ format_mobs_to_plot = function(mobs_lframe) {
     filter(str_detect(var, 'precip'))
   
   if (nrow(precip_data) > 0) {
-    #cumsum calculation helper
-    calculate_cumsum = function(mobs_dframe) {
-      if (all(is.na(mobs_dframe[['obs']]))) {
-        mobs_dframe = mobs_dframe %>% 
-          mutate(obs = NA_real_) 
-      } else {
-        mobs_dframe = mobs_dframe %>% 
-          mutate(obs = cumsum(replace_na(obs, 0)))
-      }
-      mobs_dframe = mobs_dframe %>% 
-        mutate(mod = cumsum(replace_na(mod, 0)))
-      mobs_dframe
-    }
+
+    precip_data_wide = precip_data %>% 
+      pivot_wider(id_cols = c(date, code), names_from = var, values_from = c(mod, obs))
     
-    precip_y = precip_data %>% 
+    pdw_y = precip_data_wide %>% 
       mutate(date = floor_date(date, 'day')) %>% 
-      group_by(code, var, date) %>% 
+      group_by(code, date) %>% 
       #when summarising, output NA if all values are NA, in all other cases remove NAs
-      summarise(obs = ifelse(all(is.na(obs)), NA_real_, sum(obs, na.rm = T)),
-                mod = sum(mod, na.rm = T)) %>% 
+      summarise(mod_precip = sum(mod_precip, na.rm = T),
+                mod_subprecip = ifelse(all(is.na(obs_precip)), NA_real_, sum(mod_subprecip, na.rm = T)),
+                obs_subprecip = ifelse(all(is.na(obs_precip)), NA_real_, sum(obs_subprecip, na.rm = T)),
+                obs_precip = ifelse(all(is.na(obs_precip)), NA_real_, sum(obs_precip, na.rm = T))) %>% 
       ungroup() %>% 
-      calculate_cumsum() %>% 
-      mutate(month = -1)
+      mutate(across(-c(code, date), ~calculate_cumsum(.x)),
+             month = -1)
     
-    precip_m = precip_data %>% 
-      group_by(code, var, month = month(date)) %>% 
-      nest() %>% 
-      mutate(data = map(data, calculate_cumsum)) %>% 
-      unnest(col = data) %>% 
+    pdw_m = precip_data_wide %>% 
+      group_by(code, month = month(date)) %>% 
+      mutate(across(-date, ~calculate_cumsum(.x))) %>% 
       ungroup()
     
-    precip_data = bind_rows(precip_y, precip_m)
+    precip_data = bind_rows(pdw_y, pdw_m) %>% 
+      pivot_longer(cols = -c(code, date, month), names_to = c('scenario', 'var'), names_sep = '_',  values_to = 'value' ) %>% 
+      pivot_wider(names_from = scenario, values_from = value)
     
     mobs_lframe = mobs_lframe %>% 
       filter(str_detect(var, 'precip', negate = T))
@@ -3374,6 +3366,15 @@ check_nrow = function(dframe) {
     return(NULL)
   }
   dframe
+}
+
+#cumsum calculation helper
+calculate_cumsum = function(x) {
+  if (all(is.na(x))) {
+    x = NA_real_
+  } else {
+    x = cumsum(replace_na(x, 0))
+  }
 }
 
 archive_log = function(log_pth) {
