@@ -1135,12 +1135,9 @@ get_obs_var_params_list = function() {
        precip = list(var_col = '#377eb8',
                       var_fill = '#b3cde3',
                       lab_unit ='Accumulated~Precip~(mm)'),
-       precip6 = list(var_col = '#377eb8',
+       subprecip = list(var_col = '#377eb8',
                       var_fill = '#b3cde3',
-                  lab_unit ='Accumulated~Precip~(mm)'),
-       precip12 = list(var_col = '#377eb8',
-                       var_fill = '#b3cde3',
-                      lab_unit ='Accumulated~Precip~(mm)')
+                  lab_unit ='Accumulated~Precip~(mm)')
        )
   
 }

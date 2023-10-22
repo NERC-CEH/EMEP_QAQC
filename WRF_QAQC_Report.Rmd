@@ -61,9 +61,8 @@ gt_var_labeller = c(T2 = 'T',
                     rh2 = 'Relative Humidity',
                     wd = 'Wind Direction',
                     ws = 'Wind Speed',
-                    precip12 = 'Precip 12h',
-                    precip6 = 'Precip 6h',
-                    precip = 'Accumulated Precip')
+                    precip = 'Accumulated Precip',
+                    subprecip = 'Accumulated Precip')
 
 USERS = c(tomlis65 = 'Tomas Liska',
           mvi = 'Massimo Vieno',
