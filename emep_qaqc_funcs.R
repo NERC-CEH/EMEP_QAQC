@@ -1844,7 +1844,7 @@ plot_mobs_tseries = function(dframe) {
       mutate(var2 = var,
              var = plot_var)
     linetype_vals = c('solid', 'dashed') %>%
-      set_names(nm = c(plot_var, paste0(plot_var, '0')))
+      set_names(nm = c(plot_var, paste0('sub', plot_var)))
     
     p = p +
       geom_line(data = mod_tbl,
