@@ -1000,8 +1000,8 @@ clean_noaa = function(noaa_dframe) {
   
   if ('precip_code' %in% names(noaa_dframe)) {
     noaa_dframe = noaa_dframe %>%
-      mutate(precip_raw = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3', '9') & precip_code != '99', precip_raw, NA),
-             precip_code = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3', '9') & precip_code != '99', precip_code, NA))
+      mutate(precip_raw = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3', '9') & !precip_code %in% c('00', '99'), precip_raw, NA),
+             precip_code = if_else(precip_qc %in% c('1', '5') & precip_cc %in% c('2', '3', '9') & !precip_code %in% c('00', '99'), precip_code, NA))
   }
   
   noaa_dframe = noaa_dframe %>% 
@@ -2654,7 +2654,7 @@ plot_annual_scatter = function(mobs_ameans, colours = '#7570b3',
     pull(min_val)
   
   #determine plot title
-  if (unique(mobs_ameans$var) == 'precip') {
+  if (unique(mobs_ameans$var) %in% c('precip', 'subprecip')) {
     p_title = paste0(OBS_VAR_PARAMS_LIST[[unique(mobs_ameans$var)]][['lab_unit']])
   } else {
     p_title = parse(text = paste0('Annual~Mean~', OBS_VAR_PARAMS_LIST[[unique(mobs_ameans$var)]][['lab_unit']]))
