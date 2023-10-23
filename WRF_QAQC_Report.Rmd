@@ -463,7 +463,7 @@ if (length(m_list0) > 0) {
 mobs_plotlist = mobs_list %>%
   future_map(~mutate(.x, date = with_tz(date, tzone = MOBS_TZONE)), .options = furrr_options(seed = T)) %>% 
   future_map(~filter(.x, year(date) == min(year(date))), .options = furrr_options(seed = T)) %>% 
-  future_map(format_mobs_to_plot, .options = furrr_options(seed = T)) %>% 
+  future_map(format_mobs_to_plot, data_thresh = MOBS_THRESHOLD, .options = furrr_options(seed = T)) %>% 
   future_map(left_join, select(sites_geo, code, station), .options = furrr_options(seed = T))
 
 mobs_plotlist %>% 

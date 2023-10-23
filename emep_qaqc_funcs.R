@@ -1130,10 +1130,11 @@ format_noaa = function(noaa_dframe) {
   
 }
 
-format_mobs_to_plot = function(mobs_lframe) {
+format_mobs_to_plot = function(mobs_lframe, ...) {
   #creates a nested tibble with daily means for the full year (month == -1) and
   #separate hourly data for each month
-  #this format is needed to plot annual and monthly time series plots
+  #this format is needed to plot annual and monthly time series plots#
+  #... for summarise_mobs_function
   
   #discard data from the subsequent year (e.g. in wrf modelling)
   mobs_lframe = mobs_lframe %>% 
@@ -1175,7 +1176,7 @@ format_mobs_to_plot = function(mobs_lframe) {
   }
   
   data_daily_means = mobs_lframe %>% 
-    summarise_mobs() %>% 
+    summarise_mobs(...) %>% 
     mutate(month = -1)
   mobs_out = mobs_lframe %>% 
     mutate(month = month(date)) %>% 
