@@ -14,7 +14,7 @@ WRF_DOMAIN = 'd03'
 WRF_RUN_DESCRIPTOR = 'WRF4.2.2 UKSCAPE 2018'
 
 OBS_DIR = 'default' #default is the Data subdirectory in the QAQC_DIR but can be any previous qaqc run data - make sure both the domain and year are the same!!!
-REF_MOBS_DIR = NA
+REF_MOBS_DIR = NULL
 
 PALETTE_DIR = '/home/emep4uk/Tools/NCL/6.6.2/lib/ncarg/colormaps' #where ncl color palettes are stored
                                                                   #see https://www.ncl.ucar.edu/Document/Graphics/color_table_gallery.shtml
@@ -38,7 +38,7 @@ MOBS_STATS_FNAME = 'Mobs_modstats_annual.csv'                # summary statistic
 # Site sampling parameters ------------------------------------------------
 # parameter values for 'sample_site' function - each parameter below must be a list of same length
 # and corresponding elements must be valid for the sampling type - please see function docstring
-SITES_SAMPLING_TYPE = list('subset', 'random') # one of c(NULL, 'sf', 'random', 'stratified', 'subset', 'manual')
+SITES_SAMPLING_TYPE = list('subset', 'random') # one of c(NULL, 'sf', 'random', 'stratified', 'subset', 'manual', 'exclude')
 SITES_SAMPLING_SELECTOR = list('airport', NULL)
 N_SITES = list(NULL, 150)
 
@@ -84,8 +84,5 @@ plots_pth_out = dir_create(path(QAQC_DIR, 'Plots'))
 tables_pth_out = dir_create(path(QAQC_DIR, 'Tables'))
 data_pth_out = dir_create(path(QAQC_DIR, 'Data'))
 
-if (OBS_DIR == 'default') {
-  OBS_DIR = data_pth_out
-}
 
 
