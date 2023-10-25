@@ -416,7 +416,7 @@ get_params_list = function() {
                                                  budg_stat = NULL),
                          DDEP_OXN_m2Seminat = list(map_levs = 20 * MAP_TEMPLATE_BREAKS,
                                                    map_difflevs = 0.1 * MAP_TEMPLATE_DIFF_BREAKS,
-                                                   map_diffprecision = '%1f',
+                                                   map_diffprecision = '%.1f',
                                                    units = 'mgN/m2',
                                                    pretty_lab = 'Dry dep NOy',
                                                    budg_factor = NULL,
