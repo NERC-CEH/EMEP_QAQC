@@ -2142,6 +2142,9 @@ plot_mobs_sites_map2 = function(sites_df, basemap = c('world_topo', 'satellite',
 plot_mobs_stats_map = function(sites_df, mobs_stat = 'MB', basemap = c('world_topo', 'satellite', 'terrain'),
                                 group_column = NULL, legend_title = 'Legend') {
   
+  sites_df = sites_df %>%
+    drop_na({{mobs_stat}})
+  
   #create leaflet popups with appropriate capitalisation of letters - it's convoluted but works
   stat_vars = c('n', 'FAC2', 'MB', 'NMB', 'RMSE', 'r', 'p', 'P')
   info_vars0 = c('code', 'station', 'site', group_column, 'network', 'elev(m)', 'year') 
@@ -2192,11 +2195,10 @@ plot_mobs_stats_map = function(sites_df, mobs_stat = 'MB', basemap = c('world_to
   p_breaks[1] = p_breaks[1] - abs(p_breaks[1]*0.001)
   p_breaks[length(p_breaks)] = p_breaks[length(p_breaks)] * 1.001
   
-  sites_df = sites_df %>%
-    drop_na({{mobs_stat}}) %>% 
-    mutate(stat_cut = cut(.data[[mobs_stat]], right= F,  breaks = p_breaks, labels = p_labels, include.lowest = T))
-  
   pal = colorFactor(palette = rev(p_colors), domain = rev(p_labels), ordered = T)
+  
+  sites_df = sites_df %>%
+    mutate(stat_cut = cut(.data[[mobs_stat]], right= F,  breaks = p_breaks, labels = p_labels, include.lowest = T))
   
   m = m %>% 
     addCircleMarkers(data = sites_df, fillColor = ~pal(stat_cut), fillOpacity = 1, opacity = 1,
