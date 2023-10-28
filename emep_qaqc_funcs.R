@@ -240,34 +240,14 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index) {
   #get dttm from file
   date = wrf_file %>%
     wrf$extract_times(timeidx = wrf$ALL_TIMES)
-  if (wrf_var %in% c('ws', 'wd')) {
-    u_v = wrf_file %>% 
-      wrf$getvar('uvmet10', timeidx = wrf$ALL_TIMES)
-    u = u_v$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'u') %>% 
-      wrf$to_np()
-    v = u_v$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'v') %>% 
-      wrf$to_np()
-    if (wrf_var == 'ws') {
-      value = sqrt(u*u + v*v)
-    } else {
-      value = atan2(u,v) * (180/pi) + 180
-    }
-   
-    # value = wrf_file %>% 
-    #   wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
-    # value = value$sel(south_north = xr_index[1], west_east = xr_index[0], wspd_wdir = 'wspd')
-  # } else if (wrf_var == 'wd') {
-  #   value = wrf_file %>% 
-  #     wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
-  #   value = value$sel(south_north = xr_index[1], west_east = xr_index[0], wspd_wdir = 'wdir')
-  } else if (wrf_var == 'u') {
-    value = wrf_file %>% 
-      wrf$getvar('uvmet10', timeidx = wrf$ALL_TIMES)
-    value = value$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'u')
-  } else if (wrf_var == 'v') {
-    value = wrf_file %>% 
-      wrf$getvar('uvmet10', timeidx = wrf$ALL_TIMES)
-    value = value$sel(south_north = xr_index[1], west_east = xr_index[0], u_v = 'v')
+  if (wrf_var == 'ws') {
+    value = wrf_file %>%
+      wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
+    value = value$sel(south_north = xr_index[1], west_east = xr_index[0], wspd_wdir = 'wspd')
+  } else if (wrf_var == 'wd') {
+    value = wrf_file %>%
+      wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
+    value = value$sel(south_north = xr_index[1], west_east = xr_index[0], wspd_wdir = 'wdir')
   } else {
     value = wrf_file %>% 
       wrf$getvar(wrf_var, timeidx = wrf$ALL_TIMES)
