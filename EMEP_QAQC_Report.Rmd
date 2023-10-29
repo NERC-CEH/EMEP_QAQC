@@ -28,6 +28,7 @@ library(gt)
 library(leaflet)
 library(logger)
 library(htmltools)
+library(checkmate)
 source('emep_qaqc_user_input.R')
 source('myquicktext.R')
 source('emep_vars_parameters.R')
@@ -1247,7 +1248,8 @@ report_mobs_plotlist = compact(report_mobs_plotlist) %>%
       .options = furrr_options(seed = T)) %>% 
   map(ungroup) %>% 
   map(~filter(.x, month == -1)) %>% 
-  map(unnest, cols = c(plots, var))
+  map(unnest, cols = c(plots, var)) %>% 
+  map(~arrange(.x, factor(var, levels = names(OBS_VAR_PARAMS_LIST))))
 
 p_title_list = report_mobs_plotlist %>% 
   map(~str_c(unique(.x[['code']]),

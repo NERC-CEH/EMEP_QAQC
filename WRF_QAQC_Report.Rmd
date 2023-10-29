@@ -102,7 +102,7 @@ if (is.na(qaqc_user)) {
 }
 
 ```
-This report evaluates the `r WRF_RUN_DESCRIPTOR` model run. The report has been produced by **`r qaqc_user`** and all outputs have been saved in **`r QAQC_DIR`.**
+This report evaluates the `r WRF_DOMAIN` domain of the WRF model run output saved in the `r WRF_DIR` directory. The report has been produced by **`r qaqc_user`** and all outputs have been saved in **`r QAQC_DIR`.**
 
 ```{r collate_mobs, include = F, eval = COLLATE_MOBS}
 wrf_files = WRF_DIR %>% 
@@ -521,7 +521,8 @@ report_mobs_plotlist = compact(report_mobs_plotlist) %>%
       .options = furrr_options(seed = T)) %>% 
   map(ungroup) %>% 
   map(~filter(.x, month == -1)) %>% 
-  map(unnest, cols = c(plots, var))
+  map(unnest, cols = c(plots, var)) %>% 
+  map(~arrange(.x, factor(var, levels = names(OBS_VAR_PARAMS_LIST))))
 
 p_title_list = report_mobs_plotlist %>% 
   map(~str_c(unique(.x[['code']]), ' (', unique(.x[['station']]), ')')) %>% 
