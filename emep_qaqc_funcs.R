@@ -1792,7 +1792,7 @@ plot_mobs_tseries = function(dframe) {
     } 
     
     if (plot_var == 'slp') {
-      ymin = min(tbl_sub$obs, na.rm = T) 
+      ymin = min(c(tbl_sub$mod, tbl_sub$obs), na.rm = T) 
     } else {
       ymin = 0
     }
