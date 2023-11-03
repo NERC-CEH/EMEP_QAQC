@@ -731,6 +731,7 @@ summarise_mobs = function(mobs_lframe, var = 'all', avg_time = 'day',
   
   #mobs_lframe is mobs dataframe in the long format
   mobs = mobs_lframe %>% 
+    mutate(mod = if_else(is.na(obs), NA_real_, mod)) %>% 
     timeAverage(avg.time = avg_time, data.thresh = data_thresh, type = c('code', 'var'), statistic = summary_stat) %>% 
     ungroup() %>% 
     mutate(across(where(is.factor), ~as.character(.x)))
