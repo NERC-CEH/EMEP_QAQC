@@ -727,11 +727,16 @@ compare_inv_mod_emissions = function(model_run_dir, emiss_inv_pth, save_file = T
 }
 
 summarise_mobs = function(mobs_lframe, var = 'all', avg_time = 'day',
-                          summary_stat = 'mean', data_thresh = 75) {
+                          summary_stat = 'mean', data_thresh = 75, drop_na = T) {
   
   #mobs_lframe is mobs dataframe in the long format
-  mobs = mobs_lframe %>% 
-    mutate(mod = if_else(is.na(obs), NA_real_, mod)) %>% 
+  if (drop_na == T) {
+    mobs = mobs_lframe %>% 
+      mutate(mod = if_else(is.na(obs), NA_real_, mod)) 
+  } else {
+    mobs = mobs_lframe
+  }
+  mobs = mobs %>%
     timeAverage(avg.time = avg_time, data.thresh = data_thresh, type = c('code', 'var'), statistic = summary_stat) %>% 
     ungroup() %>% 
     mutate(across(where(is.factor), ~as.character(.x)))
