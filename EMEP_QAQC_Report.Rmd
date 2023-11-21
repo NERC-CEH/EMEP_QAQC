@@ -71,8 +71,8 @@ USERS = c(tomlis65 = 'Tomas Liska',
           jansch = 'Janice Scheffler',
           yuawan = 'Yuanlin Wang',
           racbec = 'Rachel Beck',
-          liqyao = 'Liquan Yao',
-          damtan = 'Damaris Tan')
+          damtan = 'Damaris Tan',
+          yaoge33 = 'Yao Ge')
 
 #initiate chunk params (crashes without it)
 emiss_exceedance_tbls = list(NULL, NULL)
