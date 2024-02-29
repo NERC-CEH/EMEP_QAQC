@@ -1250,6 +1250,7 @@ plot_comp_maps2_WIP = function(diff_list, var_params_list, pal_dir = PALETTE_DIR
   rdiff_pal = read_color(path(pal_dir, rdiff_pal))
   
   extract_extreme = function(stars_list, extreme) {
+    assertChoice(extreme, c('min', 'max'))
     if (extreme == 'max') {
       out = stars_list %>% 
         map_dbl(~map_dbl(.x, ~max(.x, na.rm = T), .y = .x)) %>% 
@@ -1261,6 +1262,7 @@ plot_comp_maps2_WIP = function(diff_list, var_params_list, pal_dir = PALETTE_DIR
     }
     out
   }
+  
   
   #calculate color breaks
   #first limits
@@ -1478,18 +1480,37 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   boundaries_ref = boundaries0%>%  
     st_transform(st_crs(diff_list[[1]][[2]]))
   
+  extract_extreme = function(stars_list, extreme) {
+    assertChoice(extreme, c('min', 'max'))
+    if (extreme == 'max') {
+      out = stars_list %>% 
+        map_dbl(~map_dbl(.x, ~max(.x, na.rm = T), .y = .x)) %>% 
+        max()
+    } else if (extreme == 'min') {
+      out = stars_list %>% 
+        map_dbl(~map_dbl(.x, ~min(.x, na.rm = T), .y = .x)) %>% 
+        min()
+    }
+    out
+  }
+  
   p1_list = map(diff_list, 1)
   p2_list = map(diff_list, 2)
+  p3_list = map(diff_list, 3) %>% 
+    compact()
+  p4_list = map(diff_list, 4) %>% 
+    compact()
+  
   
   #make sure all values are included in the colorscale range
-  max_val = c(p1_list, p2_list) %>% 
-    map_dbl(~map_dbl(.x, ~max(.x, na.rm = T), .y = .x)) %>% 
-    max()
+  max_val = extract_extreme(c(p1_list, p2_list), 'max')
+  min_val = extract_extreme(c(p1_list, p2_list), 'min')
+  max_abs_diff = extract_extreme(p3_list, 'max')
+  min_abs_diff = extract_extreme(p3_list, 'min')
+  max_rel_diff = extract_extreme(p4_list, 'max')
+  min_rel_diff = extract_extreme(p4_list, 'min')
   
-  min_val = c(p1_list, p2_list) %>% 
-    map_dbl(~map_dbl(.x, ~min(.x, na.rm = T), .y = .x)) %>% 
-    min()
-  
+
   #breaks and labels for colorbars
   map_breaks = VAR_PARAMS_LIST[[var]][['map_levs']]
   
@@ -1510,11 +1531,11 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   #map_labs = as.character(map_breaks)[c(-1,-length(map_breaks))] 
   
   
-  diff_breaks = c(-1e6, VAR_PARAMS_LIST[[var]][['map_difflevs']], 1e6)
+  diff_breaks = c(min(-1e6, floor(min_abs_diff)), VAR_PARAMS_LIST[[var]][['map_difflevs']], max(1e6, ceiling(max_abs_diff)))
   diff_labels = sprintf(VAR_PARAMS_LIST[[var]][['map_diffprecision']], diff_breaks)
-  diff_labels[seq(1:length(diff_labels)) %% 2 == 1] = ''
-  diff_labels = diff_labels[c(-1, -length(diff_breaks))]
-  #labels for relative difference - hardcoded to -100, -80,...,0,...,80, 100 percent
+  diff_labels[seq(1:length(diff_labels)) %% 2 == 1] = '' #use every other label
+  diff_labels = diff_labels[c(-1, -length(diff_breaks))] # don't label min and max
+  rel_diff_breaks = c(min(-1e6, floor(min_rel_diff)), seq(-100, 100, 10), max(1e6, ceiling(max_rel_diff)))
   diff_rel_labels = if_else(seq_along(c(-1e6, seq(-100, 100, 10), 1e6)) %% 2 == 1,
                             '', as.character(c(-1e6, seq(-100, 100, 10), 1e6))) %>% 
     .[c(-1, -length(c(-1e6, seq(-100, 100, 10), 1e6)))]
@@ -1577,8 +1598,6 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
   
   p2 = theme_emep_diffmap(p2)
   
-  p3_list = map(diff_list, 3) %>% 
-    compact()
   if (length(p3_list) > 0) {
     p3 = ggplot()
     for (i in seq_along(p3_list)) {
@@ -1617,13 +1636,11 @@ plot_comp_maps = function(diff_list, ncl_palette_dir = getwd(), pretty_lab = F) 
       theme(legend.position = 'none')
   }
   
-  p4_list = map(diff_list, 4) %>% 
-    compact()
   if (length(p4_list) > 0) {
     p4 = ggplot()
     for (i in seq_along(p4_list)) {
       p4 = p4 +
-        geom_stars(data = cut(p4_list[[i]], breaks = c(-1e6, seq(-100, 100, 10), 1e6), include.lowest = T))
+        geom_stars(data = cut(p4_list[[i]], breaks = rel_diff_breaks, include.lowest = T))
     }
     p4 = p4 +
       geom_sf(data = st_crop(boundaries_test, p4_list[[1]]), color = "black", fill = NA, size = 0.07) + 
@@ -3229,7 +3246,7 @@ apply_area_mask = function(stars_object, area_mask = NULL) {
 }
 
 recode_site_type = function(site_type) {
-  site_type_grp = case_when((is.na({{site_type}}) || {{site_type}} == '') ~ 'Unknown',
+  site_type_grp = case_when((is.na({{site_type}}) | {{site_type}} == '') ~ 'Unknown',
                             {{site_type}} %in% c("Urban Traffic","roadside","Roadside",
                                          "Kerbside","kerbside","traffic_urban") == T ~ 'Road',
                             {{site_type}} %in% c("Urban Background","Suburban Background", "urban",
