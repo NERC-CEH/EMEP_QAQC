@@ -1173,6 +1173,10 @@ format_mobs_to_plot = function(mobs_lframe, ...) {
   mobs_out
 }
 
+check_run_errors = function(run_file, error_msg = NULL, error_msg_file = NULL) {
+  assert()
+}
+
 
 # PLOTTING FUNCS ----------------------------------------------------------
 
