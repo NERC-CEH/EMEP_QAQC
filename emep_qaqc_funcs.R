@@ -364,6 +364,20 @@ read_emep = function(emep_fname, emep_crs, var = 'all', dims = c('i', 'j', 'time
   emep_data
 }
 
+collate_budget = function(emep_stars, var_params_list, emep_run_name = NULL, area_mask_sf = NULL, area_name = NULL) {
+  if (is.null(area_mask_sf)) {
+  } else {
+    emep_stars = emep_stars %>% 
+      apply_area_mask(area_mask = area_mask_sf)
+  }
+  
+  budget_df = emep_stars %>%
+    calc_budget(evp_list = var_params_list) %>% 
+    mutate(run = emep_run_name,
+           area = if_else(is.null(area_name), 'full_domain',area_name))
+  
+}
+
 calc_budget = function(stars_object, evp_list) {
   #calculates the budget for all vars in stars_object based on parameters in evp_list
   budget_list = vector('list', length(names(stars_object)))
@@ -533,8 +547,9 @@ calculate_emep_diff = function(emep_var,
           list(stars1, stars2)
         },
         c(stars1, stars2) %>% 
-          mutate(abs_diff := !!sym(names(stars1)) - !!sym(names(stars2)),
-                 rel_diff := (!!sym(names(stars1)) - !!sym(names(stars2)))/!!sym(names(stars2)) * 100)
+          set_names(c('run1', 'run2')) %>% #set dummy names to be able to calculate differences
+          mutate(abs_diff = run1 - run2,
+                 rel_diff = (run1 - run2)/run2 * 100) 
       )
       
       if ('abs_diff' %in% names(stars_diff)) {
@@ -543,8 +558,10 @@ calculate_emep_diff = function(emep_var,
             mutate(abs_diff = NA_real_,
                    rel_diff = NA_real_)
         }
-        stars_diff = names(stars_diff) %>% 
-          map(select, .data = stars_diff)
+        stars_diff = seq(1:length(names(stars_diff))) %>% 
+          map(select, .data = stars_diff) %>% 
+          #set names according to run_labels
+          map2(c(run_labels[1], run_labels[2], 'abs_diff', 'rel_diff')[1:length(names(stars_diff))], set_names)
       }
       out[[i]] = stars_diff
       names(out)[[i]] = str_c(emep_var, c('outer', 'inner')[i], sep = '_')

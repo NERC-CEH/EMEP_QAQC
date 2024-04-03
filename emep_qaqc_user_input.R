@@ -46,7 +46,7 @@ FULLRUN_INNER_TRIMMED = F
 EMEP_BUDGET_DIR = list(TEST_INNER_DIR, REF_INNER_DIR) #budget fnames by default fullrun outputs for test inner and ref inner runs resp.
                                                    #the test fname must be the first element of the vector
 
-BUDGET_MASK_FNAME = NULL # gpks or shp files in Area_masks directory or own supplied
+BUDGET_MASK_FNAME = NULL # gpks or shp files in Area_masks directory or own supplied. Can be an arbitrary number in which case you'll get the data calculated per area.
 EMISSION_INVENTORY_PTH = NULL #choose one of the EMEP emissions files found in Emission_Inventory_files directory
 REF_MOBS_DIR = NULL
 
