@@ -5,7 +5,8 @@ library(logger)
 
 EMEP_CRS_LL = '+proj=eqc +ellps=WGS84 +a=6378137.0 +lon_0=0.0 +to_meter=111319.4907932736 +vto_meter=1 +no_defs +type=crs'
 EMEP_CRS_STEREO1 = NULL
-EMEP_CRS_STEREO2 = '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +units=km +k_0=0.9330127018922193 +no_defs +type=crs'
+EMEP_CRS_STEREO2 = '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +k_0=0.9330127018922193 +no_defs +type=crs'
+# EMEP_CRS_STEREO2 = '+proj=stere +ellps=sphere +lat_0=90.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +units=km +k_0=0.9330127018922193 +no_defs +type=crs' # worked for R version < 4.4.0
 
 # USER INPUT --------------------------------------------------------------
 # Coordinate systems --------------------------------------------------------------
