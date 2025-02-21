@@ -51,7 +51,7 @@ BUDGET_MASK_FNAME = NULL # gpks or shp files in Area_masks directory or own supp
 EMISSION_INVENTORY_PTH = NULL #choose one of the EMEP emissions files found in Emission_Inventory_files directory
 REF_MOBS_DIR = NULL
 
-PALETTE_DIR = '/home/emep4uk/Tools/NCL/6.6.2/lib/ncarg/colormaps' #where ncl color palettes are stored
+PALETTE_DIR = '/gpfs01/home/emep4uk/Tools/NCL/6.6.2_old/lib/ncarg/colormaps' #where ncl color palettes are stored
                                                                   # see https://www.ncl.ucar.edu/Document/Graphics/color_table_gallery.shtml
 
 # Output directory ------------------------------------------------------------
