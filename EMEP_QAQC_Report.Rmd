@@ -468,7 +468,7 @@ log_info('Budget table SAVED')
 #plot the difference if comparing two budget files
 if (length(EMEP_BUDGET_FNAME) == 2) {
   budget_df2 = budget_df %>%
-    mutate(run2 = if_else(run == str_replace(EMEP_BUDGET_FNAME[1], '_[^_]+$', ''), 'test', 'ref')) %>% 
+    mutate(run2 = if_else(run == EMEP_BUDGET_FNAME[1], 'test', 'ref')) %>% 
     pivot_longer(cols = any_of(c('Total', 'Mean')), names_to = 'Stat', values_to = 'value') %>%
     pivot_wider(id_cols = c(Variable, Stat, Unit), names_from = run2, values_from = value) %>% 
     drop_na() %>% 
