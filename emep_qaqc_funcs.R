@@ -2426,6 +2426,9 @@ mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
     bind_rows() %>% 
     pull(plots)
 
+  # remove any non-ggplot objects from the list
+  plot_list = plot_list[map_lgl(plot_list, ~ inherits(.x, "gg"))]
+
   
   export = marrangeGrob(grobs = plot_list, nrow = ppp, ncol = 1, top = substitute(page_titles[g]))
   ggsave(filename = plot_pth_out, export, paper = 'a4', height = 10, width = 7)
