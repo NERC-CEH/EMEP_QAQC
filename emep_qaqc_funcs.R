@@ -234,12 +234,15 @@ sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
   meta_df
 }
 
-extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index) {
+extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_level = NULL) {
   
   wrf_file = ncpy$Dataset(wrf_file_pth)
-  #get dttm from file
+  
+  #get datetime from file
   date = wrf_file %>%
     wrf$extract_times(timeidx = wrf$ALL_TIMES)
+  
+  #extract the wrf variable
   if (wrf_var == 'ws') {
     value = wrf_file %>%
       wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
@@ -251,6 +254,33 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index) {
   } else {
     value = wrf_file %>% 
       wrf$getvar(wrf_var, timeidx = wrf$ALL_TIMES)
+    #value = value$sel(south_north = xr_index[1], west_east = xr_index[0])
+    
+    # check if the variable has a vertical dimension
+    dims = value$dims
+    
+    # index_level must be integer
+    index_level = as.integer(index_level)
+    if ('bottom_top' %in% dims) {
+      if (!is.null(index_level)) {
+        value = value$isel(bottom_top = index_level)
+      } else {
+        stop('The variable has a vertical coordinate. Please specify a numeric level.')
+      }
+    } else if ('bottom_top_stag' %in% dims) {
+      if (!is.null(index_level)) {
+        value = value$isel(bottom_top_stag = index_level)
+      } else {
+        stop('The variable has a staggered vertical coordinate. Please specify a numeric level.')
+      }
+    } else if ('low_mid_high' %in% dims) {
+      if (!is.null(index_level)) {
+        value = value$isel(low_mid_high = index_level)
+      } else {
+        stop("The variable has named vertical levels. Please specify 'low', 'mid', or 'high'.")
+      }
+    }
+    
     value = value$sel(south_north = xr_index[1], west_east = xr_index[0])
   }
   
