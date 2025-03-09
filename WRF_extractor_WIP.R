@@ -72,7 +72,7 @@ sites_iter = sites %>%
   distinct(cell_id, .keep_all = T) %>% 
   select(code, i, j, cell_id)
 
-iter_df = expand_grid(met_var = WRF_VARS, wrf_file = wrf_files[1:2])
+iter_df = expand_grid(met_var = WRF_VARS, wrf_file = wrf_files)
 
 
 
