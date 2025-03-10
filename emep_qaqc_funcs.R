@@ -119,7 +119,7 @@ get_auto_data = function(site, network, pollutant, start_year, end_year, to_narr
 }
 
 get_isd_sites = function(year, CC_file = NULL) {
-  assert_choice(year, choices = 1901:2023)
+  assert_choice(year, choices = 1901:year(Sys.Date()))
   isd_sites = read_html(str_c('https://www.ncei.noaa.gov/data/global-hourly/access/', year)) %>% 
     html_elements('a') %>% 
     html_text() %>% 
