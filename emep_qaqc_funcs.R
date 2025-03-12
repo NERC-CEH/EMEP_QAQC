@@ -235,6 +235,9 @@ sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
 }
 
 extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_level = NULL) {
+  ### extracts wrf variable (wrf_var) data at a particular location
+  ### index_level applies to the vertical coordinate, it MUST be NULL or one value (lowest is 0),
+  ### alternatively index_level can be set to 'pblh' to interpolate values at the boundary layer height
   
   wrf_file = ncpy$Dataset(wrf_file_pth)
   
@@ -242,7 +245,13 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
   date = wrf_file %>%
     wrf$extract_times(timeidx = wrf$ALL_TIMES)
   
-  #extract the wrf variable
+  # validate index_level input
+  if (!is.null(index_level) && index_level !='pblh') {
+    assert_number(as.numeric(index_level), lower = 0, finite = TRUE, na.ok = FALSE)
+    index_level = as.integer(index_level)  # Convert to integer if valid
+  }
+  
+  # extract the wrf variable
   if (wrf_var == 'ws') {
     value = wrf_file %>%
       wrf$getvar('uvmet10_wspd_wdir', timeidx = wrf$ALL_TIMES)
@@ -254,31 +263,36 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
   } else {
     value = wrf_file %>% 
       wrf$getvar(wrf_var, timeidx = wrf$ALL_TIMES)
-    #value = value$sel(south_north = xr_index[1], west_east = xr_index[0])
     
     # check if the variable has a vertical dimension
     dims = value$dims
     
-    # index_level must be integer
-    index_level = as.integer(index_level)
-    if ('bottom_top' %in% dims) {
-      if (!is.null(index_level)) {
-        value = value$isel(bottom_top = index_level)
+    # handle vertical levels
+    if (!is.null(index_level)) {
+      if (index_level == 'pblh') {
+        # extract PBLH variable
+        pblh = wrf_file %>% wrf$getvar('PBLH', timeidx = wrf$ALL_TIMES)
+        pblh = pblh$sel(south_north = xr_index[1], west_east = xr_index[0]) %>% wrf$to_np()
+        
+        # get height levels
+        z = wrf_file %>% wrf$getvar('z', timeidx = wrf$ALL_TIMES)  # Full model height
+        z = z$sel(south_north = xr_index[1], west_east = xr_index[0]) %>% wrf$to_np()
+        
+        # interpolate variable to PBLH
+        value = wrf$interplevel(value, z, pblh)
       } else {
-        stop('The variable has a vertical coordinate. Please specify a numeric level.')
+        if ('bottom_top' %in% dims) {
+          value = value$isel(bottom_top = index_level)
+        } else if ('bottom_top_stag' %in% dims) {
+          value = value$isel(bottom_top_stag = index_level)
+        } else if ('low_mid_high' %in% dims) {
+          value = value$isel(low_mid_high = index_level)
+        } else {
+          stop('The variable does not have a recognized vertical coordinate.')
+        }
       }
-    } else if ('bottom_top_stag' %in% dims) {
-      if (!is.null(index_level)) {
-        value = value$isel(bottom_top_stag = index_level)
-      } else {
-        stop('The variable has a staggered vertical coordinate. Please specify a numeric level.')
-      }
-    } else if ('low_mid_high' %in% dims) {
-      if (!is.null(index_level)) {
-        value = value$isel(low_mid_high = index_level)
-      } else {
-        stop("The variable has named vertical levels. Please specify 'low', 'mid', or 'high'.")
-      }
+    } else if ('bottom_top' %in% dims || 'bottom_top_stag' %in% dims || 'low_mid_high' %in% dims) {
+      stop("The variable has a vertical coordinate. Please specify a numeric level or 'pblh'.")
     }
     
     value = value$sel(south_north = xr_index[1], west_east = xr_index[0])
@@ -308,7 +322,6 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
   dframe = tibble(date, wrf_var, value) %>% 
     pivot_longer(cols = -c(date, wrf_var), names_to = 'code', values_to = 'value')
 }
-
 calculate_wrf_precip = function(wrf_frame) {
   #calculates hourly precip in mm from RAINC and RAINCC
   wrf_frame = wrf_frame %>% 
