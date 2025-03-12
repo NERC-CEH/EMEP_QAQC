@@ -272,11 +272,9 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
       if (index_level == 'pblh') {
         # extract PBLH variable
         pblh = wrf_file %>% wrf$getvar('PBLH', timeidx = wrf$ALL_TIMES)
-        pblh = pblh$sel(south_north = xr_index[1], west_east = xr_index[0]) %>% wrf$to_np()
         
         # get height levels
         z = wrf_file %>% wrf$getvar('z', timeidx = wrf$ALL_TIMES)  # Full model height
-        z = z$sel(south_north = xr_index[1], west_east = xr_index[0]) %>% wrf$to_np()
         
         # interpolate variable to PBLH
         value = wrf$interplevel(value, z, pblh)
@@ -320,18 +318,9 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
   wrf_var = rep(wrf_var, length(date))
   
   dframe = tibble(date, wrf_var, value) %>% 
-    pivot_longer(cols = -c(date, wrf_var), names_to = 'code', values_to = 'value')
+    pivot_longer(cols = -c(date, wrf_var), names_to = 'code', values_to = 'value') %>% 
+    mutate(vertical_level = if_else(is.null(index_level), NA_character_, index_level))
 }
-calculate_wrf_precip = function(wrf_frame) {
-  #calculates hourly precip in mm from RAINC and RAINCC
-  wrf_frame = wrf_frame %>% 
-    pivot_wider(id_cols = c(date, code), names_from = wrf_var, values_from = value) %>% 
-    mutate(precip = RAINNC + RAINC,
-           precip = precip -lag(precip)) %>% 
-    select(-RAINNC, -RAINC) %>% 
-    pivot_longer(cols = c(-date, -code), names_to = 'var', values_to = 'value')
-}
-
 compare_file_size = function(test_dir, ref_dir) {
   
   ###tests if domains of test and ref match - temporarily disabled because of Tomas's uEMEP directory
