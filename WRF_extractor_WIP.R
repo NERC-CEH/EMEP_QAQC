@@ -28,7 +28,8 @@ future::plan(multicore)
 
 WRF_DIR = '/home/emep4uk/WRF/STORED_WRF_RUNS/UKSCAPE/WRF4.4.2/2024'
 WRF_DOMAIN = 'd03'
-WRF_VARS = c('UST', 'CLDFRA', 'ua','va', 'QCLOUD', 'QVAPOR', 'tc')
+#WRF_VARS = c('UST', 'CLDFRA', 'ua','va', 'QCLOUD', 'QVAPOR', 'tc')
+WRF_VARS = c('td', 'pressure', 'tv', 'QCLOUD', 'tc' )
 
 wrf_files = WRF_DIR %>% 
   dir_ls() %>% 
@@ -48,15 +49,10 @@ sites_pth = '/gpfs01/air_models/home/tomlis65/Janice/Complex_Terrain_sites.csv'
 sites = read_csv(sites_pth) %>% 
   discard(~all(is.na(.)))
 
-# sites_geo = sites %>% 
-#   st_as_sf(coords = c('lon', 'lat'), crs = 4326)
-
 #extract site indexes
 met_index_xr = wrf$ll_to_xy(ncpy$Dataset(wrf_files[1]), latitude = sites$lat, longitude = sites$lon, meta = T)
 met_index_xr2 = wrf$ll_to_xy(ncpy$Dataset(wrf_files[1]), latitude = sites$lat, longitude = sites$lon, meta = F)
 
-
-wrf_file = ncpy$Dataset(wrf_files[1])
 
 indexes = as_tibble(met_index_xr2, .name_repair = ~sites$code) %>% 
   mutate(index = c('i', 'j')) %>% 
@@ -72,12 +68,13 @@ sites_iter = sites %>%
   distinct(cell_id, .keep_all = T) %>% 
   select(code, i, j, cell_id)
 
-iter_df = expand_grid(met_var = WRF_VARS, wrf_file = wrf_files)
+iter_df = expand_grid(met_var = WRF_VARS, wrf_file = wrf_files) %>% 
+  mutate(index_level = if_else(met_var == 'tc', 'pblh', '0'))
 
 
 
-wrf_data_tlist = future_pmap(list(wrf_file_pth = iter_df$wrf_file, wrf_var = iter_df$met_var),
-                             safely(extract_wrf_var_point), code = sites$code, xr_index = met_index_xr, index_level = 0, 
+wrf_data_tlist = future_pmap(list(wrf_file_pth = iter_df$wrf_file, wrf_var = iter_df$met_var, index_level = iter_df$index_level),
+                             safely(extract_wrf_var_point), code = sites$code, xr_index = met_index_xr, 
                              .options = furrr_options(seed = T)) %>% 
   transpose()
 
@@ -86,5 +83,5 @@ is_ok <- wrf_data_tlist$error %>%
 wrf_data_list = wrf_data_tlist$result[is_ok] %>% 
   bind_rows() %>%
   split(.$code)
-write_rds(wrf_data_list, path('/gpfs01/air_models/home/tomlis65/Janice', 'wrf_sites_data_level0.rds'))
+write_rds(wrf_data_list, path('/gpfs01/air_models/home/tomlis65/Janice', 'wrf_sites_data_level0_additional.rds'))
 
