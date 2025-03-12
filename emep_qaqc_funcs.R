@@ -234,9 +234,9 @@ sample_sites = function(meta_df, type = NULL, selector = NULL, n = NULL) {
   meta_df
 }
 
-extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_level = NULL) {
+extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_level = NA) {
   ### extracts wrf variable (wrf_var) data at a particular location
-  ### index_level applies to the vertical coordinate, it MUST be NULL or one value (lowest is 0),
+  ### index_level applies to the vertical coordinate, it MUST be NA or one value (lowest level is 0),
   ### alternatively index_level can be set to 'pblh' to interpolate values at the boundary layer height
   
   wrf_file = ncpy$Dataset(wrf_file_pth)
@@ -246,7 +246,7 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
     wrf$extract_times(timeidx = wrf$ALL_TIMES)
   
   # validate index_level input
-  if (!is.null(index_level) && index_level !='pblh') {
+  if (!is.na(index_level) && index_level !='pblh') {
     assert_number(as.numeric(index_level), lower = 0, finite = TRUE, na.ok = FALSE)
     index_level = as.integer(index_level)  # Convert to integer if valid
   }
@@ -268,13 +268,15 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
     dims = value$dims
     
     # handle vertical levels
-    if (!is.null(index_level)) {
+    if (!is.na(index_level)) {
       if (index_level == 'pblh') {
         # extract PBLH variable
-        pblh = wrf_file %>% wrf$getvar('PBLH', timeidx = wrf$ALL_TIMES)
+        pblh = wrf_file %>%
+          wrf$getvar('PBLH', timeidx = wrf$ALL_TIMES)
         
         # get height levels
-        z = wrf_file %>% wrf$getvar('z', timeidx = wrf$ALL_TIMES)  # Full model height
+        z = wrf_file %>%
+          wrf$getvar('z', timeidx = wrf$ALL_TIMES)  # Full model height
         
         # interpolate variable to PBLH
         value = wrf$interplevel(value, z, pblh)
