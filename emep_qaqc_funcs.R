@@ -319,7 +319,7 @@ extract_wrf_var_point = function(wrf_file_pth, wrf_var, code, xr_index, index_le
   
   dframe = tibble(date, wrf_var, value) %>% 
     pivot_longer(cols = -c(date, wrf_var), names_to = 'code', values_to = 'value') %>% 
-    mutate(vertical_level = if_else(is.null(index_level), NA_character_, index_level))
+    mutate(vertical_level = if_else(is.null(index_level), NA_character_, as.character(index_level)))
 }
 compare_file_size = function(test_dir, ref_dir) {
   
