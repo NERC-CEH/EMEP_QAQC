@@ -465,8 +465,9 @@ emep_budget2 = emep_budget2 %>%
   set_names(nm = EMEP_BUDGET_FNAME)
 budget_df = map_dfr(emep_budget2, calc_budget, VAR_PARAMS_LIST, .id = 'run') %>% 
   arrange(Variable) %>% 
-  mutate(run = str_replace(run, '_[^_]+$', '')) %>% #drop characters after the last underscore (e.g. 'fullrun.nc')
-  write_csv(path(tables_pth_out, paste0(path_ext_remove(BUDGET_TABLE_FNAME), '_', mod_test_year,
+  mutate(run = str_replace(run, '_[^_]+$', '')) #drop characters after the last underscore (e.g. 'fullrun.nc')
+
+write_csv(budget_df, path(tables_pth_out, paste0(path_ext_remove(BUDGET_TABLE_FNAME), '_', mod_test_year,
                                         '.', path_ext(BUDGET_TABLE_FNAME))))
 log_info('Budget table SAVED')
 
