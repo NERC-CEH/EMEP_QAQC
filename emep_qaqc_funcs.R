@@ -2784,6 +2784,9 @@ plot_annual_scatter = function(mobs_ameans, colours = '#7570b3',
       } 
       
     } else {
+      p = p +
+        scale_x_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), mobs_max * 1.02)) +
+        scale_y_continuous(limits = c(mobs_min - abs(mobs_min* 0.02), mobs_max * 1.02))
       theme_extra = theme(legend.position = 'right')
     }
   
