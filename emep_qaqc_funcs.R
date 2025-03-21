@@ -2419,7 +2419,7 @@ mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
     map_chr(str_wrap, width = 80)
   
   #if run_title_info provided, add it to the page titles
-  if (!is.na(run_title_info)) {
+  if (!is.null(run_title_info)) {
     page_daily_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_daily_title)
     page_hourly_title = str_c(str_wrap(run_title_info, 50), '\n\n', page_hourly_title)
   }
@@ -2460,8 +2460,9 @@ mobs_tseries_to_pdf = function(mobs_tbl, out_dir = getwd(), fname_out = NULL,
     bind_rows() %>% 
     pull(plots)
 
-  # remove any non-ggplot objects from the list
-  plot_list = plot_list[map_lgl(plot_list, ~ inherits(.x, "gg"))]
+  # replace any NULL objects in the list with a blank plot
+  plot_list = plot_list %>% 
+    map(~if (is.null(.x)) create_blank_plot() else .x)
 
   
   export = marrangeGrob(grobs = plot_list, nrow = ppp, ncol = 1, top = substitute(page_titles[g]))
