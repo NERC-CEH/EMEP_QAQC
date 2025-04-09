@@ -64,14 +64,6 @@ gt_var_labeller = c(T2 = 'T',
                     precip = 'Accumulated Precip',
                     subprecip = 'Accumulated Precip')
 
-USERS = c(tomlis65 = 'Tomas Liska',
-          mvi = 'Massimo Vieno',
-          jansch = 'Janice Scheffler',
-          yuawan = 'Yuanlin Wang',
-          racbec = 'Rachel Beck',
-          liqyao = 'Liquan Yao',
-          damtan = 'Damaris Tan')
-
 MODSTATS_STATS_LOOKUP = c(n = 'Count',
                           FAC2 = 'Factor of Two',
                           MB = 'Mean Bias',
