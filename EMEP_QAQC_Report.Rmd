@@ -66,14 +66,6 @@ MODSTATS_STATS_LOOKUP = c(n = 'Count',
                           RMSE = 'Root Mean Squared Error',
                           r = 'Correlation Coefficient')
 
-USERS = c(tomlis65 = 'Tomas Liska',
-          mvi = 'Massimo Vieno',
-          jansch = 'Janice Scheffler',
-          yuawan = 'Yuanlin Wang',
-          racbec = 'Rachel Beck',
-          damtan = 'Damaris Tan',
-          chrhoo = 'Christina Hood')
-
 #initiate chunk params (crashes without it)
 emiss_exceedance_tbls = list(NULL, NULL)
 MBS_list = list()
