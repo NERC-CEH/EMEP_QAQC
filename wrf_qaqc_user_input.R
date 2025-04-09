@@ -1,5 +1,15 @@
 library(fs)
 
+# users -------------------------------------------------------------------
+USERS = c(tomlis65 = 'Tomas Liska',
+          tomasliska = 'Tomas Liska',
+          mvi = 'Massimo Vieno',
+          jansch = 'Janice Scheffler',
+          yuawan = 'Yuanlin Wang',
+          racbec = 'Rachel Beck',
+          damtan = 'Damaris Tan',
+          chrhoo = 'Christina Hood')
+
 # tasks -------------------------------------------------------------------
 COLLATE_MOBS = T
 EVALUATE_MOBS = T
