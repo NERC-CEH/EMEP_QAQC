@@ -1,5 +1,16 @@
 library(fs)
 library(logger)
+
+# users -------------------------------------------------------------------
+USERS = c(tomlis65 = 'Tomas Liska',
+          tomasliska = 'Tomas Liska',
+          mvi = 'Massimo Vieno',
+          jansch = 'Janice Scheffler',
+          yuawan = 'Yuanlin Wang',
+          racbec = 'Rachel Beck',
+          damtan = 'Damaris Tan',
+          chrhoo = 'Christina Hood')
+
 # projection defs ---------------------------------------------------------
 ### projection definitions used in EMEP
 
