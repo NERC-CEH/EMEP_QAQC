@@ -83,11 +83,7 @@ both_stats = tibble() #for modstats comparison of test and ref MOBS
 
 ```{r run info}
 #determine author of the qaqc run
-qaqc_user = QAQC_DIR %>%
-  path_split() %>% 
-  flatten_chr() %>% 
-  .[str_which(.,'home') + 1] %>% 
-  USERS[.]
+qaqc_user = Sys.info()['user']
 
 if (is.na(qaqc_user)) {
   stop('User not defined in USERS, please update USERS in WRF_QAQC_Report.Rmd.')
