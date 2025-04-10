@@ -1831,6 +1831,10 @@ plot_mobs_tseries = function(dframe) {
       tbl_sub = dframe %>% 
         filter(var == plot_var) 
     }
+
+    # make sure the data are in chronological order for time resolution calculation
+    tbl_sub = tbl_sub %>% 
+      arrange(date)
     
     dc_obs = sum(!is.na(tbl_sub$obs)) #calculate observation data capture
     #determine time res and time span of data to select appropriate datetime breaks and labels
