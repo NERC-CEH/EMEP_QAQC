@@ -125,11 +125,7 @@ if (is.null(inner_domain)) {
 }
 
 #determine author of the qaqc run
-qaqc_user = QAQC_DIR %>%
-  path_split() %>% 
-  list_c() %>% 
-  .[str_which(.,'home') + 1] %>% 
-  USERS[.]
+qaqc_user = Sys.info()['user']
 
 if (is.na(qaqc_user)) {
   log_error('User not defined in USERS, please update USERS in EMEP_QAQC_Report.Rmd.')
