@@ -424,38 +424,31 @@ EMEP_BUDGET_FNAME = map_chr(EMEP_BUDGET_DIR, ~dir_ls(.) %>%
                               str_subset('fullrun'))
 
 emep_budget_vars = select_vars(vars = BUDGET_VARS, var_params_list = VAR_PARAMS_LIST, param = 'budg_factor') 
-emep_budget = map2(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, ~read_emep(.x, .y, var = emep_budget_vars, proxy = F))
+emep_stars_list = map2(EMEP_BUDGET_FNAME, EMEP_BUDGET_CRS, ~read_emep(.x, .y, var = emep_budget_vars, proxy = F)) %>% 
+  set_names(nm = EMEP_BUDGET_FNAME)
+if (is.null(BUDGET_MASK_FNAME)) {
+  area_mask_list = list(full_domain = NULL)
+} else {
+  area_mask_list = map(BUDGET_MASK_FNAME, st_read) %>% 
+    set_names(BUDGET_MASK_FNAME)
+  log_info('Budget mask path: {path_abs(BUDGET_MASK_FNAME)}')
+}
+
+budget_iter_df = expand_grid(emep_stars_list, area_mask_list)
 
 #get test file modelled year to put into output filename
 mod_test_year = EMEP_BUDGET_FNAME[1] %>%
-  read_stars(sub = names(emep_budget[[1]])[1]) %>%
+  read_stars(sub = names(emep_stars_list[[1]])[1]) %>%
   st_get_dimension_values('time') %>% 
   year()
 
-if (!is.null(BUDGET_MASK_FNAME)) {
-  budget_mask = st_read(BUDGET_MASK_FNAME)
-  log_info('Budget mask path: {path_abs(BUDGET_MASK_FNAME)}')
-  
-  emep_budget2 = tryCatch(
-    error = function(cnd) {
-      emep_budget
-      log_warn('FAILED to apply area mask. Budget calculated for the full modelling domain.')
-      log_debug(cnd)
-    },
-    emep_budget %>%
-      map(apply_area_mask, area_mask = budget_mask)
-  )
-} else {
-  emep_budget2 = emep_budget
-  log_warn('Budget mask path: {BUDGET_MASK_FNAME}. Budget calculated for the full modelling domain.')
-}
-emep_budget2 = emep_budget2 %>% 
-  set_names(nm = EMEP_BUDGET_FNAME)
-budget_df = map_dfr(emep_budget2, calc_budget, VAR_PARAMS_LIST, .id = 'run') %>% 
+budget_list = pmap(list(emep_stars = budget_iter_df$emep_stars_list, area_mask_sf = budget_iter_df$area_mask_list,
+                      emep_run_name = names(budget_iter_df$emep_stars_list), area_name = names(budget_iter_df$area_mask_list)),
+                 collate_budget, var_params_list = VAR_PARAMS_LIST) 
+budget_df = budget_list %>% 
+  bind_rows() %>% 
   arrange(Variable) %>% 
-  mutate(run = str_replace(run, '_[^_]+$', '')) #drop characters after the last underscore (e.g. 'fullrun.nc')
-
-write_csv(budget_df, path(tables_pth_out, paste0(path_ext_remove(BUDGET_TABLE_FNAME), '_', mod_test_year,
+  write_csv(path(tables_pth_out, paste0(path_ext_remove(BUDGET_TABLE_FNAME), '_', mod_test_year,
                                         '.', path_ext(BUDGET_TABLE_FNAME))))
 log_info('Budget table SAVED')
 
