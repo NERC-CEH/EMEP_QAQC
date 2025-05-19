@@ -409,6 +409,20 @@ read_emep = function(emep_fname, emep_crs, var = 'all', dims = c('i', 'j', 'time
   emep_data
 }
 
+collate_budget = function(emep_stars, var_params_list, emep_run_name = NULL, area_mask_sf = NULL, area_name = NULL) {
+  if (is.null(area_mask_sf)) {
+  } else {
+    emep_stars = emep_stars %>% 
+      apply_area_mask(area_mask = area_mask_sf)
+  }
+  
+  budget_df = emep_stars %>%
+    calc_budget(evp_list = var_params_list) %>% 
+    mutate(run = emep_run_name,
+           area = if_else(is.null(area_name), 'full_domain',area_name))
+  
+}
+
 calc_budget = function(stars_object, evp_list) {
   #calculates the budget for all vars in stars_object based on parameters in evp_list
   budget_list = vector('list', length(names(stars_object)))
